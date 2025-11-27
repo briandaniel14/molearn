@@ -44,9 +44,9 @@ def main():
 
         fit_results = trainer.run(
             epochs=1,
-            log_filename=f"log.dat{d}",
-            log_folder= f"cnn_multi_dim_checkpoints{d}",
-            checkpoint_folder= f"cnn_multi_dim_checkpoints{d}",
+            log_filename=f"log{d}.dat",
+            log_folder= f"cnn_multi_dim_checkpoints",
+            checkpoint_folder= f"cnn_multi_dim_checkpoints",
             verbose=True,
         )
 

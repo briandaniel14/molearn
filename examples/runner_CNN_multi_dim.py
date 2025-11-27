@@ -34,8 +34,9 @@ def main():
     dims = [2, 3]
     
     for d in dims:
+        print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
-        model = AutoEncoder()
+        model = AutoEncoder(latent_z=d)
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 

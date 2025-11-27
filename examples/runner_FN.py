@@ -37,8 +37,8 @@ def main():
     ##### Training Loop #####
     # Keep training until loss does not improve for 16 consecutive epochs
 
-    fit_results = trainer.run_until_converge(
-        patience=16,
+    fit_results = trainer.run(
+        epochs=1,
         log_filename="log.dat",
         log_folder="foldingnet_checkpoints",
         checkpoint_folder="foldingnet_checkpoints",

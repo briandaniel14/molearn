@@ -14,7 +14,7 @@ dependencies:
   - cctbx
   - pandas
   - scipy
-  - pytorch-cuda
+  - pytorch
   - biobox
   - openmm
   - ipywidgets
@@ -23,4 +23,4 @@ dependencies:
   - openmmtorchplugin
   - mdtraj
   - pip:
-    - geomloss
+      - geomloss

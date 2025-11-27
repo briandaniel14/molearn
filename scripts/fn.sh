@@ -24,7 +24,7 @@ cd ..
 source /home/${USER}/miniconda3/bin/activate molearn
 
 echo 'running script'
-python cb_foldingnet_basic.py
+python runner_FN.py
 
 rsync --archive --update --compress --progress ${OUTPUT_SCRATCH} ${OUTPUT_DIST}
 

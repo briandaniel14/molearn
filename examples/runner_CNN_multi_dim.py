@@ -9,34 +9,38 @@ import torch
 
 
 def main():
-    ##### Load Data #####
-    data = PDBData()
-    data.import_pdb(
-        ["./data/MurD_open.pdb", "./data/MurD_closed.pdb"]
-    )
-    data.fix_terminal()
-    data.atomselect(atoms=["N", "CA", "CB", "C", "O"])
-    dataset = data.prepare_dataset()
-    data.write_statistics("data_statistics.json") # Save mean and std for analysis later
-
-    ##### Prepare Trainer #####
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    trainer = OpenMM_Physics_Trainer(device=device)
-
-    trainer.set_data(data, 
-                     batch_size=16, 
-                     validation_split=0.1, 
-                     manual_seed=25,
-                     save_indices=False     # If True, the training/validation split indices will be saved to disk
-                     )
-    trainer.prepare_physics(remove_NB=True)
 
     dims = [2, 3]
     
     for d in dims:
+
+        ##### Load Data #####
+        data = PDBData()
+        data.import_pdb(
+            ["./data/MurD_open.pdb", "./data/MurD_closed.pdb"]
+        )
+        data.fix_terminal()
+        data.atomselect(atoms=["N", "CA", "CB", "C", "O"])
+        dataset = data.prepare_dataset()
+        data.write_statistics("data_statistics.json") # Save mean and std for analysis later
+
+        ##### Prepare Trainer #####
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        trainer = OpenMM_Physics_Trainer(device=device)
+
+        trainer.set_data(data, 
+                        batch_size=16, 
+                        validation_split=0.1, 
+                        manual_seed=25,
+                        save_indices=False     # If True, the training/validation split indices will be saved to disk
+                        )
+        
+        trainer.prepare_physics(remove_NB=True)
+
         print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
         model = AutoEncoder(latent_z=d)
+        print(model.latent_z())
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 
@@ -46,8 +50,8 @@ def main():
         fit_results = trainer.run(
             epochs=1,
             log_filename=f"log{d}.dat",
-            log_folder= f"cnn_multi_dim_checkpoints",
-            checkpoint_folder= f"cnn_multi_dim_checkpoints",
+            log_folder= f"cnn_multi_dim_checkpoints/{d}",
+            checkpoint_folder= f"cnn_multi_dim_checkpoints/{d}",
             verbose=True,
         )
 

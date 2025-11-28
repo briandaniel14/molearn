@@ -10,7 +10,7 @@ import torch
 
 def main():
 
-    dims = [2, 3]
+    dims = [2, 3, 4, 5, 6, 7, 8, 9, 10]
     
     for d in dims:
 
@@ -40,15 +40,14 @@ def main():
         print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
         model = AutoEncoder(latent_z=d)
-        print(model.latent_z())
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 
         ##### Training Loop #####
         # Keep training until loss does not improve for 16 consecutive epochs
 
-        fit_results = trainer.run(
-            epochs=1,
+        fit_results = trainer.run_until_converge(
+            patience=8,
             log_filename=f"log{d}.dat",
             log_folder= f"cnn_multi_dim_checkpoints/{d}",
             checkpoint_folder= f"cnn_multi_dim_checkpoints/{d}",

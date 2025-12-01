@@ -1,12 +1,13 @@
 import sys
 import os
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.abspath(os.pardir), "src"))
 from molearn.data import PDBData
 from molearn.trainers import OpenMM_Physics_Trainer
 from molearn.models.CNN_autoencoder import AutoEncoder
 import torch
-
+import pandas as pd
 
 def main():
 
@@ -53,6 +54,15 @@ def main():
             checkpoint_folder= f"cnn_multi_dim/{d}",
             verbose=True,
         )
+
+        # Convert log file to 3 significant figures
+        log_path = Path(f"cnn_multi_dim/{d}/log.dat")
+        if log_path.exists():
+            df = pd.read_csv(log_path)
+            for col in df.columns:
+                if col != 'epoch' and pd.api.types.is_numeric_dtype(df[col]):
+                    df[col] = df[col].apply(lambda x: float(f"{x:.2e}") if pd.notna(x) else x)
+            df.to_csv(log_path, index=False, float_format='%.2e')
 
         del model
         if torch.cuda.is_available():

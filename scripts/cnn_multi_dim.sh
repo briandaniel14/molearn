@@ -5,14 +5,14 @@ export TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 export MOLEARN_PATH=/home/${USER}/repos/molearn
 export SCRATCH_HOME=/disk/scratch/${USER}/molearn
 export OUTPUT_SCRATCH=${SCRATCH_HOME}/examples/cnn_multi_dim_checkpoints
-export OUTPUT_DIST=/home/${USER}/results/${TIMESTAMP}
+export OUTPUT_DIST=${MOLEARN_PATH}/results/${TIMESTAMP}
 
 mkdir -p $OUTPUT_DIST
 
 mkdir -p ${SCRATCH_HOME}
 rsync --archive --update --compress --progress ${MOLEARN_PATH}/ ${SCRATCH_HOME}
 
-echo 'unzipping data'
+echo 'unzipping data'  
 cd ${SCRATCH_HOME}/examples/data
 
 tar -xzf MurD_closed_apo.tar.gz

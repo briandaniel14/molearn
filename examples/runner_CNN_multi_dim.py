@@ -48,9 +48,9 @@ def main():
 
         fit_results = trainer.run_until_converge(
             patience=8,
-            log_filename=f"log{d}.dat",
-            log_folder= f"cnn_multi_dim_checkpoints/{d}",
-            checkpoint_folder= f"cnn_multi_dim_checkpoints/{d}",
+            log_filename=f"log.dat",
+            log_folder= f"cnn_multi_dim/{d}",
+            checkpoint_folder= f"cnn_multi_dim/{d}",
             verbose=True,
         )
 

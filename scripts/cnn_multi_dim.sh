@@ -4,7 +4,7 @@ export TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 export MOLEARN_PATH=/home/${USER}/repos/molearn
 export SCRATCH_HOME=/disk/scratch/${USER}/molearn
-export OUTPUT_SCRATCH=${SCRATCH_HOME}/examples/cnn_multi_dim_checkpoints
+export OUTPUT_SCRATCH=${SCRATCH_HOME}/examples/cnn_multi_dim
 export OUTPUT_DIST=${MOLEARN_PATH}/results/${TIMESTAMP}
 
 mkdir -p $OUTPUT_DIST

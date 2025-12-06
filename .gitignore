@@ -1,11 +1,7 @@
 .vscode/
 
 ## Datasets
-analysis/data/aligned_murd_closed_npt_prod_downsampled.dcd
-analysis/data/aligned_murd_open_npt_prod_downsampled.dcd
-analysis/data/MurD_closed_apo.pdb
-analysis/data/MurD_closed.pdb
-analysis/data/MurD_open.pdb
+analysis/data/
 
 ## Core latex/pdflatex auxiliary files:
 *.aux

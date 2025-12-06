@@ -100,7 +100,7 @@ if __name__ == "__main__":
         refine=True,
         truncate_at=surface_clip,
         plot_data=dope_plot_data,
-        fname='dope_surface_refined.png'
+        fname='../figures/dope_surface_refined.png'
         cmap="viridis",
         bbox_inches="tight",
     )

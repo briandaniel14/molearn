@@ -1,3 +1,5 @@
+#! To be run from scripts/molearn
+
 if __name__ == "__main__":
 
     import sys
@@ -69,24 +71,24 @@ if __name__ == "__main__":
 
     MA = MolearnAnalysis()
     MA.batch_size = 16
-    MA.processes = 32
+    MA.processes = 4
 
     MA.set_dataset(data=data_open, key="train_open")
     MA.set_dataset(data=data_closed, key="train_closed")
     MA.set_dataset(data=data_test, key="test_trans")
 
-    MA.set_network(model)
+    MA.set_network(models[2])
 
         # We first setup a latent grid whose boundaries encompass all datasets.
     if "grid" not in MA._encoded:
-        grid_key = MA.setup_grid(samples=70)
+        grid_key = MA.setup_grid(samples=15)
         print(f"Latent grid '{grid_key}' initialised with {MA.n_samples} samples per axis.")
     else:
         grid_key = "grid"
         print("Re-using previously initialised latent grid.")
 
     # Next, we compute the DOPE surface over the latent grid.
-    dope_surface, xvals, yvals = MA.scan_dope(refine=True)
+    dope_surface, xvals, yvals = MA.scan_dope(refine=False)
     surface_clip = np.percentile(dope_surface, 80)
 
     dope_plot_data = [
@@ -97,10 +99,10 @@ if __name__ == "__main__":
 
     plot_dope_surface(
         MA,
-        refine=True,
+        refine=False,
         truncate_at=surface_clip,
         plot_data=dope_plot_data,
-        fname='../figures/dope_surface_refined.png'
+        fname='../figures/dope_surface_refined.png',
         cmap="viridis",
         bbox_inches="tight",
     )

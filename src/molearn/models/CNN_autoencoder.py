@@ -62,7 +62,7 @@ class AutoEncoder(nn.Module):
     This is the autoencoder used in our `Ramaswamy 2021 paper <https://journals.aps.org/prx/abstract/10.1103/PhysRevX.11.011052>`_.
     It is largely superseded by :func:`molearn.models.foldingnet.AutoEncoder`.
     '''
-    def __init__(self, init_z=32, latent_z=1, depth=4, m=1.5, r=0, droprate=None):    
+    def __init__(self, init_z=32, latent_z=1, depth=4, m=1.5, r=0, droprate=None, include_2d=True):    
         '''
         :param int init_z: number of channels in first layer
         :param int latent_z: number of latent space dimensions
@@ -73,6 +73,7 @@ class AutoEncoder(nn.Module):
         '''
         
         super(AutoEncoder, self).__init__()    
+        
         # encoder block    
         eb = nn.ModuleList()    
         eb.append(nn.Conv1d(3, init_z, 4, 2, 1, bias=False))    
@@ -80,6 +81,7 @@ class AutoEncoder(nn.Module):
         if droprate is not None:    
             eb.append(nn.Dropout(p=droprate))    
         eb.append(nn.ReLU(inplace=True))    
+        
         for i in range(depth):
             eb.append(nn.Conv1d(int(init_z*m**i), int(init_z*m**(i+1)), 4, 2, 1, bias=False))
             eb.append(nn.BatchNorm1d(int(init_z*m**(i+1))))
@@ -89,11 +91,14 @@ class AutoEncoder(nn.Module):
             for j in range(r):
                 eb.append(ResidualBlock(int(init_z*m**(i+1))))
         eb.append(nn.Conv1d(int(init_z*m**depth), latent_z, 4, 2, 1, bias=False))
-        eb.append(To2D(latent_z))
+        
+        if include_2d: eb.append(To2D(latent_z))
         self.encoder = eb
+        
         # decoder block
         db = nn.ModuleList()
-        db.append(From2D(latent_z))
+        if include_2d: db.append(From2D(latent_z))
+        
         db.append(nn.ConvTranspose1d(latent_z, int(init_z*m**(depth+1)), 4, 2, 1, bias=False))
         db.append(nn.BatchNorm1d(int(init_z*m**(depth+1))))
         if droprate is not None:

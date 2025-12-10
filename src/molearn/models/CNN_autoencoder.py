@@ -56,16 +56,43 @@ class From2D(nn.Module):
         x = x.view(batch, self.latent_z, self.out_length)
         return x
 
+class ToND(nn.Module):
+    def __init__(self, latent_z, N=2):
+        super(ToND, self).__init__()
+        self.latent_z = latent_z
+        self.N = N
+        self.proj = nn.Linear(N * latent_z, N)
+
+    def forward(self, x):
+        z = torch.nn.functional.adaptive_avg_pool2d(x, output_size=(self.N, 1))
+        z = torch.sigmoid(z)
+        z = z.view(z.size(0), -1)
+        z = self.proj(z)
+        return z
+    
+class FromND(nn.Module):
+    def __init__(self, latent_z, N=2):
+        super(FromND, self).__init__()
+        self.latent_z = latent_z
+        self.out_length = 26  # matches legacy decoder setup
+        self.f = nn.Linear(N, self.out_length * latent_z)
+
+    def forward(self, x):
+        batch = x.size(0)
+        x = self.f(x)
+        x = x.view(batch, self.latent_z, self.out_length)
+        return x
 
 class AutoEncoder(nn.Module):    
     '''
     This is the autoencoder used in our `Ramaswamy 2021 paper <https://journals.aps.org/prx/abstract/10.1103/PhysRevX.11.011052>`_.
     It is largely superseded by :func:`molearn.models.foldingnet.AutoEncoder`.
     '''
-    def __init__(self, init_z=32, latent_z=1, depth=4, m=1.5, r=0, droprate=None, include_2d=True):    
+    def __init__(self, init_z=32, latent_z=1, latent_dim=2, depth=4, m=1.5, r=0, droprate=None):    
         '''
         :param int init_z: number of channels in first layer
-        :param int latent_z: number of latent space dimensions
+        :param int latent_z: number of latent channels
+        :param int latent_z: number of latent dimensions
         :param int depth: number of layers
         :param float m: scaling factor, dictating number of channels in subsequent layers
         :param int r: number of residual blocks between layers
@@ -92,12 +119,12 @@ class AutoEncoder(nn.Module):
                 eb.append(ResidualBlock(int(init_z*m**(i+1))))
         eb.append(nn.Conv1d(int(init_z*m**depth), latent_z, 4, 2, 1, bias=False))
         
-        if include_2d: eb.append(To2D(latent_z))
+        eb.append(ToND(latent_z=latent_z, N=latent_dim)) # To enable architectures without 2D layers
         self.encoder = eb
         
         # decoder block
         db = nn.ModuleList()
-        if include_2d: db.append(From2D(latent_z))
+        db.append(FromND(latent_z=latent_z, N=latent_dim))
         
         db.append(nn.ConvTranspose1d(latent_z, int(init_z*m**(depth+1)), 4, 2, 1, bias=False))
         db.append(nn.BatchNorm1d(int(init_z*m**(depth+1))))

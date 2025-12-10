@@ -1,7 +1,9 @@
 ### TODO
 
-Dope Score (run on MLP cluster)
-PCA
-Read that paper
+test ToND 
+Finish reading Masters Latent_z variation paper
+Train on full dataset + with ToND / FromND
 
-Use full dataset - check how, alexandro
+Pull changes from main
+
+Complete PCA

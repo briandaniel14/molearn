@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import random
 import string
-
+import MDAnalysis as mda
 
 def random_string(length=32):
     '''
@@ -24,6 +24,10 @@ def as_numpy(tensor):
     else:
         return np.array(tensor)
     
+def convert_dcd_to_pdb(pdb_file, dcd_file, output_file):
+    u = mda.Universe(pdb_file, dcd_file)
+    u.atoms.write(output_file, frames='all')
+    print(f"Wrote {len(u.trajectory)} frames to {output_file}")
 
 class ShutUp:
     

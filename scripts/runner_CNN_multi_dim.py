@@ -1,29 +1,48 @@
 import sys
 import os
+import torch
+import pandas as pd
+
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.abspath(os.pardir), "src"))
 from molearn.data import PDBData
 from molearn.trainers import OpenMM_Physics_Trainer
 from molearn.models.CNN_autoencoder import AutoEncoder
-import torch
-import pandas as pd
+from molearn.utils import convert_dcd_to_pdb
+
+
+
 
 def main():
 
+    ##### Create PDB files #####
+
+    convert_dcd_to_pdb(
+    "../data/cleaned_aligned_structure.pdb",
+    "../data/aligned_murd_closed_npt_prod_downsampled.dcd",
+    "../data/full_MurD_closed.pdb"
+    )
+
+    convert_dcd_to_pdb(
+    "../data/cleaned_aligned_structure.pdb",
+    "../data/aligned_murd_open_npt_prod_downsampled.dcd",
+    "../data/full_MurD_open.pdb"
+    )
+
     dims = [2, 3, 4, 5, 6, 7, 8, 9, 10]
     
-    for d in dims:
+    for d in dims:    
 
         ##### Load Data #####
         data = PDBData()
         data.import_pdb(
-            ["./data/MurD_open.pdb", "./data/MurD_closed.pdb"]
+            ["../data/full_MurD_open.pdb", "../data/full_MurD_closed.pdb"]
         )
         data.fix_terminal()
         data.atomselect(atoms=["N", "CA", "CB", "C", "O"])
         dataset = data.prepare_dataset()
-        data.write_statistics("data_statistics.json") # Save mean and std for analysis later
+        #data.write_statistics("data_statistics_full.json") # Save mean and std for analysis later
 
         ##### Prepare Trainer #####
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -40,7 +59,7 @@ def main():
 
         print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
-        model = AutoEncoder(latent_z=d)
+        model = AutoEncoder(latent_dim=d)
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 
@@ -48,7 +67,7 @@ def main():
         # Keep training until loss does not improve for 16 consecutive epochs
 
         fit_results = trainer.run_until_converge(
-            patience=8,
+            epochs=16,
             log_filename=f"log.dat",
             log_folder= f"cnn_multi_dim/{d}",
             checkpoint_folder= f"cnn_multi_dim/{d}",

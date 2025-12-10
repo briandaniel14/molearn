@@ -2,12 +2,12 @@
 
 ## Datasets
 data/aligned_murd_closed_npt_prod_downsampled.dcd
-#data/aligned_murd_closed_npt_prod_downsampled.tar.gz
 data/aligned_murd_open_npt_prod_downsampled.dcd
-#data/aligned_murd_open_npt_prod_downsampled.tar.gz
 data/MurD_closed_apo.pdb
 data/MurD_closed.pdb
 data/MurD_open.pdb
+data/full_MurD_closed.pdb
+data/full_MurD_open.pdb
 ## Examples
 
 examples/

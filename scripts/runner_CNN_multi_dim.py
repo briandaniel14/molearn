@@ -67,7 +67,7 @@ def main():
         # Keep training until loss does not improve for 16 consecutive epochs
 
         fit_results = trainer.run_until_converge(
-            epochs=16,
+            patience=16,
             log_filename=f"log.dat",
             log_folder= f"cnn_multi_dim/{d}",
             checkpoint_folder= f"cnn_multi_dim/{d}",

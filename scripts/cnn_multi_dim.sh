@@ -1,14 +1,12 @@
 #!/bin/bash
 
-export TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
 export MOLEARN_PATH=/home/${USER}/repos/molearn
 export SCRATCH_HOME=/disk/scratch/${USER}/molearn
 export OUTPUT_SCRATCH=${SCRATCH_HOME}/results/cnn_multi_dim
-export OUTPUT_DIST=${MOLEARN_PATH}/results/${TIMESTAMP}
+export OUTPUT_HEAD=${MOLEARN_PATH}/results/${TIMESTAMP}
 
-mkdir -p $OUTPUT_DIST
-mkdir -p ${SCRATCH_HOME}
+mkdir -p $OUTPUT_HEAD
+mkdir -p $SCRATCH_HOME
 
 rsync --archive --update --compress --progress ${MOLEARN_PATH}/ ${SCRATCH_HOME}
 
@@ -25,7 +23,7 @@ cd ${SCRATCH_HOME}/scripts
 
 python runner_CNN_multi_dim.py
 
-rsync --archive --update --compress --progress ${OUTPUT_SCRATCH} ${OUTPUT_DIST}
+rsync --archive --update --compress --progress ${OUTPUT_SCRATCH} ${OUTPUT_HEAD}
 
 echo 'cleaning up'
 cd /disk/scratch/

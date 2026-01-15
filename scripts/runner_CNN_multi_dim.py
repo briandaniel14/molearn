@@ -30,7 +30,7 @@ def main():
     "../data/full_MurD_open.pdb"
     )
 
-    dims = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    dims = [2]
     
     for d in dims:    
 
@@ -66,8 +66,8 @@ def main():
         ##### Training Loop #####
         # Keep training until loss does not improve for 16 consecutive epochs
 
-        fit_results = trainer.run_until_converge(
-            patience=16,
+        fit_results = trainer.run(
+            epochs=1,
             log_filename=f"log.dat",
             log_folder= f"cnn_multi_dim/{d}",
             checkpoint_folder= f"cnn_multi_dim/{d}",

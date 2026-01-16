@@ -65,17 +65,18 @@ def main():
 
         ##### Training Loop #####
         # Keep training until loss does not improve for 16 consecutive epochs
+        OUTPUT_DIR = os.getenv('OUTPUT_SCRATCH', './cnn_multi_dim')
 
         fit_results = trainer.run(
             epochs=1,
             log_filename=f"log.dat",
-            log_folder= f"cnn_multi_dim/{d}",
-            checkpoint_folder= f"cnn_multi_dim/{d}",
+            log_folder= f"{OUTPUT_DIR}/{d}",
+            checkpoint_folder= f"{OUTPUT_DIR}/{d}",
             verbose=True,
         )
 
         # Convert log file to 3 significant figures
-        log_path = Path(f"cnn_multi_dim/{d}/log.dat")
+        log_path = Path(f"{OUTPUT_DIR}/{d}/log.dat")
         if log_path.exists():
             df = pd.read_csv(log_path)
             for col in df.columns:

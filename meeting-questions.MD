@@ -1,0 +1,1 @@
+Why not increse the bond length penalty to tighten distributions? 

@@ -439,7 +439,7 @@ def plot_dope_hist(MA, plot_data=None, fname=None, refine=True, **kwargs):
 
 
 
-def plot_rmsd_hist(MA, plot_data=None, fname=None, **kwargs):
+def plot_rmsd_hist(MA, plot_data=None, fname=None, latent_dim=None, **kwargs):
     """
     Plot distributions of RMSD scores of the chosen datasets.
 
@@ -489,7 +489,8 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, **kwargs):
     ax.set_ylabel('RMSD (Å)')
     ax.set_xticks(np.arange(len(labels))*2+0.5)
     ax.set_xticklabels(labels, rotation=0)
-    ax.set_title('Distribution of RMSD')
+    title_suffix = f" (Latent dim: {latent_dim})" if latent_dim is not None else ""
+    ax.set_title(f'RMSD {title_suffix}')
     ax.grid(True, linestyle='--', alpha=0.6)
     
     # Save the plot if fname is provided
@@ -741,6 +742,82 @@ def plot_analysis_surface(MA, dataset, cmap='gist_heat_r', fname=None, **kwargs)
     cb.ax.tick_params(left=False, right=True)
     cb.ax.set_ylabel('RMSD (Å)')
 
+    if fname is not None:
+        plt.savefig(fname, **kwargs)
+    plt.show()
+
+def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None, 
+                          latent_dim=None, fname=None, latent_original_dict=None, **kwargs):
+    """
+    Plot PCA-reduced latent space colored by DOPE scores (separate plot per dataset).
+    
+    :param MolearnAnalysis MA: A MolearnAnalysis object with datasets loaded.
+    :param dict latent_pca_dict: Dictionary with keys 'train_open', 'train_closed', 'test_trans' 
+                                 containing PCA-reduced latent codes (shape: N x 2).
+    :param dict dope_scores_dict: Dictionary with keys 'train_open', 'train_closed', 'test_trans' 
+                                  containing DOPE scores for each dataset.
+    :param list plot_data: List of tuples (key, label, colour) for datasets to plot.
+                           Format: [('train_open', 'Train Open', '#FDBFCA'), ...]
+    :param int latent_dim: Latent dimension (for title).
+    :param Path fname: File name to save the plot.
+    :param dict latent_original_dict: Dictionary with original (pre-PCA) latent codes for variance calculation.
+    :param dict kwargs: Additional keyword arguments to pass to plt.savefig.
+    
+    :return: None
+    """
+    
+    # Calculate variance explained by PCA components using ORIGINAL latent data
+    from sklearn.decomposition import PCA
+    all_encoded = np.vstack([latent_original_dict[key] for key, _, _ in plot_data])
+    pca_temp = PCA(n_components=min(2, all_encoded.shape[1]))
+    pca_temp.fit(all_encoded)
+    var_pc1 = pca_temp.explained_variance_ratio_[0] * 100
+    var_pc2 = pca_temp.explained_variance_ratio_[1] * 100 if len(pca_temp.explained_variance_ratio_) > 1 else 0
+    var_total = (var_pc1 + var_pc2)
+    
+    # Create one subplot per dataset
+    num_datasets = len(plot_data)
+    fig, axes = plt.subplots(1, num_datasets, figsize=(6 * num_datasets, 5))
+    
+    # Handle case where there's only one dataset (axes won't be an array)
+    if num_datasets == 1:
+        axes = [axes]
+    
+    # Plot each dataset in its own subplot
+    for ax, (key, label, colour) in zip(axes, plot_data):
+        pca_data = latent_pca_dict[key]
+        dope = _flatten(dope_scores_dict[key])
+        
+        scatter = ax.scatter(
+            pca_data[:, 0], 
+            pca_data[:, 1],
+            c=dope,
+            cmap='viridis',
+            s=50,
+            alpha=0.7,
+            edgecolors='black',
+            linewidth=0.5,
+        )
+        
+        # Labels and title
+        ax.set_xlabel(f'PC1 ({var_pc1:.1f}%)', fontsize=11)
+        ax.set_ylabel(f'PC2 ({var_pc2:.1f}%)', fontsize=11)
+        ax.set_title(f'{label}', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        
+        # Add colorbar for this subplot
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('DOPE Score', fontsize=10)
+    
+    # Add overall title with variance information
+    fig.suptitle(
+        f'PCA of Latent Space (Latent dim: {latent_dim}, Total variance: {var_total:.1f}%)',
+        fontsize=14,
+        y=1.02
+    )
+    
+    plt.tight_layout()
+    
     if fname is not None:
         plt.savefig(fname, **kwargs)
     plt.show()

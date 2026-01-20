@@ -149,7 +149,7 @@ class AutoEncoder(nn.Module):
             x = x.permute(0, 2, 1)
 
         for m in self.encoder:
-            if isinstance(m, To2D):
+            if isinstance(m, (ToND, To2D)):
                 x = m(x.unsqueeze(-1))
             else:
                 x = m(x)

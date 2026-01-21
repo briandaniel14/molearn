@@ -751,24 +751,11 @@ def plot_analysis_surface(MA, dataset, cmap='gist_heat_r', fname=None, **kwargs)
         plt.savefig(fname, **kwargs)
     plt.show()
 
-def plot_pca_latent_space(MA, pca_results, dope_scores_dict, plot_data=None, 
-                          latent_dim=None, fname=None, **kwargs):
+def plot_pca_latent_space(pca_results, dope_scores_dict : dict, plot_data : list, 
+                          latent_dim : int) -> None:
     """
     Plot PCA-reduced latent space colored by DOPE scores (separate plot per dataset).
     
-    :param MolearnAnalysis MA: A MolearnAnalysis object with datasets loaded.
-    :param dict latent_pca_dict: Dictionary with keys 'train_open', 'train_closed', 'test_trans' 
-                                 containing PCA-reduced latent codes (shape: N x 2).
-    :param dict dope_scores_dict: Dictionary with keys 'train_open', 'train_closed', 'test_trans' 
-                                  containing DOPE scores for each dataset.
-    :param list plot_data: List of tuples (key, label, colour) for datasets to plot.
-                           Format: [('train_open', 'Train Open', '#FDBFCA'), ...]
-    :param int latent_dim: Latent dimension (for title).
-    :param Path fname: File name to save the plot.
-    :param dict latent_original_dict: Dictionary with original (pre-PCA) latent codes for variance calculation.
-    :param dict kwargs: Additional keyword arguments to pass to plt.savefig.
-    
-    :return: None
     """
     
     # Create one subplot per dataset
@@ -869,7 +856,7 @@ def plot_ca_dope_surface(
         pc1_max + margin * pc1_range,
         n_samples
     )
-    
+
     pc2_vals = np.linspace(
         pc2_min - margin * pc2_range,
         pc2_max + margin * pc2_range,

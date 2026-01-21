@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import torch
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -7,6 +8,10 @@ import matplotlib.patches as mpatches
 import seaborn as sns
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+
+from sklearn.decomposition import PCA
+
+from molearn.analysis.analyser import MolearnAnalysis
 
 plt.rcParams.update({
     "axes.titlesize": 16,    # Figure title
@@ -746,8 +751,8 @@ def plot_analysis_surface(MA, dataset, cmap='gist_heat_r', fname=None, **kwargs)
         plt.savefig(fname, **kwargs)
     plt.show()
 
-def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None, 
-                          latent_dim=None, fname=None, latent_original_dict=None, **kwargs):
+def plot_pca_latent_space(MA, pca_results, dope_scores_dict, plot_data=None, 
+                          latent_dim=None, fname=None, **kwargs):
     """
     Plot PCA-reduced latent space colored by DOPE scores (separate plot per dataset).
     
@@ -766,15 +771,6 @@ def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None,
     :return: None
     """
     
-    # Calculate variance explained by PCA components using ORIGINAL latent data
-    from sklearn.decomposition import PCA
-    all_encoded = np.vstack([latent_original_dict[key] for key, _, _ in plot_data])
-    pca_temp = PCA(n_components=min(2, all_encoded.shape[1]))
-    pca_temp.fit(all_encoded)
-    var_pc1 = pca_temp.explained_variance_ratio_[0] * 100
-    var_pc2 = pca_temp.explained_variance_ratio_[1] * 100 if len(pca_temp.explained_variance_ratio_) > 1 else 0
-    var_total = (var_pc1 + var_pc2)
-    
     # Create one subplot per dataset
     num_datasets = len(plot_data)
     fig, axes = plt.subplots(1, num_datasets, figsize=(6 * num_datasets, 5))
@@ -785,7 +781,7 @@ def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None,
     
     # Plot each dataset in its own subplot
     for ax, (key, label, colour) in zip(axes, plot_data):
-        pca_data = latent_pca_dict[key]
+        pca_data = pca_results[key]
         dope = _flatten(dope_scores_dict[key])
         
         scatter = ax.scatter(
@@ -800,8 +796,8 @@ def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None,
         )
         
         # Labels and title
-        ax.set_xlabel(f'PC1 ({var_pc1:.1f}%)', fontsize=11)
-        ax.set_ylabel(f'PC2 ({var_pc2:.1f}%)', fontsize=11)
+        ax.set_xlabel(f'PC1 ({pca_results["var_pc1"]:.1f}%)', fontsize=11)
+        ax.set_ylabel(f'PC2 ({pca_results["var_pc2"]:.1f}%)', fontsize=11)
         ax.set_title(f'{label}', fontsize=12)
         ax.grid(True, alpha=0.3)
         
@@ -811,13 +807,180 @@ def plot_pca_latent_space(MA, latent_pca_dict, dope_scores_dict, plot_data=None,
     
     # Add overall title with variance information
     fig.suptitle(
-        f'PCA of Latent Space (Latent dim: {latent_dim}, Total variance: {var_total:.1f}%)',
+        f'PCA of Latent Space (Latent dim: {latent_dim}, Total variance: {pca_results["var_total"]:.1f}%)',
         fontsize=14,
         y=1.02
     )
     
     plt.tight_layout()
-    
-    if fname is not None:
-        plt.savefig(fname, **kwargs)
     plt.show()
+    
+def plot_ca_dope_surface(
+        MA : MolearnAnalysis,
+        pca : PCA,
+        plot_data : dict,
+        refine : bool,
+        latent_dim : int,
+        n_samples: int = 20,
+        margin : float = 0.1,
+        cmap : str ='viridis',
+        truncate_at : Optional[float] = None,
+        truncate_percentile : float = 80,
+):
+    """
+    Plot DOPE surface in PCA space by inverse-transforming a 2D grid back to the full latent space.
+    
+    :param MolearnAnalysis MA: A MolearnAnalysis object with network set.
+    :param sklearn.decomposition.PCA pca: Fitted PCA object (must have been fit on the latent codes).
+    :param list plot_data: List of tuples (key, label, colour, plot_type) for overlaying datasets.
+                           plot_type should be 'scatter' or 'kde'.
+                           Format: [('train_open', 'Train Open', '#FDBFCA', 'scatter'), ...]
+    :param int n_samples: Number of grid samples per axis.
+    :param float margin: Fractional margin to add around data bounds (0.1 = 10%).
+    :param bool refine: If True, refine structures before calculating DOPE score.
+    :param float truncate_at: Upper bound for colour scale. Overrides truncate_percentile if set.
+    :param float truncate_percentile: Percentile of DOPE values to use as upper bound (default 80).
+    :param str cmap: Matplotlib colormap name.
+    :param int latent_dim: Latent dimension for title annotation.
+    
+    :return: Tuple of (dope_surface, pc1_vals, pc2_vals) for further analysis.
+    """
+    
+
+    # Collect all PCA-transformed points to determine grid bounds
+    pca_all_points = []
+    
+    for key, label, colour, plot_type in plot_data:
+        latent = _to_numpy(MA.get_encoded(key))
+        pca_coords = pca.transform(latent)
+        pca_all_points.append(pca_coords)
+
+    pca_all = np.vstack(pca_all_points)
+
+    # Compute grid bounds with margin
+    pc1_min, pc1_max = pca_all[:, 0].min(), pca_all[:, 0].max()
+    pc2_min, pc2_max = pca_all[:, 1].min(), pca_all[:, 1].max()
+
+    pc1_range = pc1_max - pc1_min
+    pc2_range = pc2_max - pc2_min
+
+    pc1_vals = np.linspace(
+        pc1_min - margin * pc1_range,
+        pc1_max + margin * pc1_range,
+        n_samples
+    )
+    
+    pc2_vals = np.linspace(
+        pc2_min - margin * pc2_range,
+        pc2_max + margin * pc2_range,
+        n_samples
+    )
+
+    # Create meshgrid in PCA space
+    pc1_grid, pc2_grid = np.meshgrid(pc1_vals, pc2_vals)
+    pca_grid_points = np.column_stack([pc1_grid.ravel(), pc2_grid.ravel()])
+
+    # Inverse transform to full latent space
+    latent_grid_points = pca.inverse_transform(pca_grid_points)
+    latent_tensor = torch.tensor(latent_grid_points, dtype=torch.float32)
+
+    # Decode and compute DOPE scores
+    print(f"Computing DOPE scores for {n_samples}x{n_samples} grid...")
+    dope_grid = np.zeros(n_samples * n_samples)
+
+    with torch.no_grad():
+        for i, latent_point in enumerate(latent_tensor):
+            decoded = MA.network.decode(latent_point.unsqueeze(0))
+            # Scale back to original coordinates for DOPE calculation
+            decoded_scaled = decoded.numpy() * MA._datasets[list(MA._datasets.keys())[0]].std + \
+                            MA._datasets[list(MA._datasets.keys())[0]].mean
+            dope_grid[i] = MA.get_all_dope_score(decoded_scaled, refine=refine)[0]
+            
+            if (i + 1) % 50 == 0:
+                print(f"  Processed {i + 1}/{len(latent_tensor)} grid points")
+
+    dope_surface = dope_grid.reshape(n_samples, n_samples)
+
+    # Determine truncation value
+    if truncate_at is None and truncate_percentile is not None:
+        truncate_at = np.percentile(dope_surface, truncate_percentile)
+    elif truncate_at is None:
+        truncate_at = dope_surface.max()
+
+    # Create plot
+    cmap_obj = mpl.cm.get_cmap(name=cmap)
+    cmap_obj.set_over(cmap_obj(1.0))
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Plot DOPE surface
+    xvals_edge = _latent_edge(pc1_vals)
+    yvals_edge = _latent_edge(pc2_vals)
+
+    mesh = ax.pcolormesh(
+        xvals_edge,
+        yvals_edge,
+        np.clip(dope_surface, None, truncate_at),
+        cmap=cmap_obj,
+        shading='auto',
+        vmin=dope_surface.min(),
+        vmax=truncate_at,
+    )
+
+    # Overlay scatter/kde for each dataset
+    legend_handles = []
+    if plot_data:
+        for key, label, colour, plot_type in plot_data:
+            latent = _to_numpy(MA.get_encoded(key))
+            pca_coords = pca.transform(latent)
+            x, y = pca_coords[:, 0], pca_coords[:, 1]
+            
+            if plot_type == "scatter":
+                ax.scatter(x, y, c=colour, s=10, alpha=0.6, label=label)
+                legend_handles.append(
+                    mpl.lines.Line2D([0], [0], color=colour, linestyle="", 
+                                        marker="o", markersize=8, label=label)
+                )
+            elif plot_type == "kde":
+                sns.kdeplot(x=x, y=y, levels=7, color=colour, ax=ax)
+                legend_handles.append(
+                    mpl.lines.Line2D([0], [0], color=colour, lw=2, label=label)
+                )
+
+    if legend_handles:
+        ax.legend(handles=legend_handles, loc='upper right')
+
+    # Variance info from PCA
+    var_pc1 = pca.explained_variance_ratio_[0] * 100
+    var_pc2 = pca.explained_variance_ratio_[1] * 100
+    var_total = var_pc1 + var_pc2
+
+    ax.set_xlabel(f'PC1 ({var_pc1:.1f}%)')
+    ax.set_ylabel(f'PC2 ({var_pc2:.1f}%)')
+
+    title = f'PCA DOPE Surface (Total variance: {var_total:.1f}%)'
+    if latent_dim is not None:
+        title = f'PCA DOPE Surface - Latent Dim {latent_dim}\n(Total variance: {var_total:.1f}%)'
+    ax.set_title(title)
+
+    ax.set_xlim(pc1_vals.min(), pc1_vals.max())
+    ax.set_ylim(pc2_vals.min(), pc2_vals.max())
+    ax.grid(False)
+
+    # Colorbar
+    cbar_ax = fig.add_axes([
+        ax.get_position().x1 + 0.02,
+        ax.get_position().y0,
+        0.02,
+        ax.get_position().height,
+    ])
+
+    cb = fig.colorbar(mesh, cax=cbar_ax)
+    cb.ax.tick_params(left=False, right=True)
+    cb.ax.set_ylabel('DOPE score')
+
+    plt.tight_layout()
+
+    plt.show()
+
+    return dope_surface, pc1_vals, pc2_vals

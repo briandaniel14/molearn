@@ -30,7 +30,7 @@ def main():
     "../data/full_MurD_open.pdb"
     )
 
-    dims = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    dims = [2]
     
     for d in dims:    
 
@@ -59,7 +59,7 @@ def main():
 
         print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
-        model = AutoEncoder(latent_dim=d, latent_z=6)
+        model = AutoEncoder(latent_dim=d)
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 

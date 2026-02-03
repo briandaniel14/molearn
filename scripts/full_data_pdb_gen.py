@@ -13,19 +13,21 @@ def convert_dcd_to_pdb(pdb_file, dcd_file, output_file):
 
 
 if __name__ == "__main__":
-    # print('ran 24')
-    # main2()
-    # print('ran 34')
-    print('65')
+
+    # convert_dcd_to_pdb(
+    # "../data/cleaned_aligned_structure.pdb",
+    # "../data/aligned_murd_closed_npt_prod_downsampled.dcd",
+    # "../data/full_murd_closed.pdb"
+    # )
+
+    # convert_dcd_to_pdb(
+    # "../data/cleaned_aligned_structure.pdb",
+    # "../data/aligned_murd_open_npt_prod_downsampled.dcd",
+    # "../data/full_murd_open.pdb"
+    # )
+
     convert_dcd_to_pdb(
     "../data/cleaned_aligned_structure.pdb",
-    "../data/aligned_murd_closed_npt_prod_downsampled.dcd",
-    "../data/full_murd_closed.pdb"
+    "../data/aligned_murd_closed_open_1_npt_prod_downsampled.dcd",
+    "../data/full_murd_open_closed_1.pdb"
     )
-    print('71')
-    convert_dcd_to_pdb(
-    "../data/cleaned_aligned_structure.pdb",
-    "../data/aligned_murd_open_npt_prod_downsampled.dcd",
-    "../data/full_murd_open.pdb"
-    )
-    print('77')

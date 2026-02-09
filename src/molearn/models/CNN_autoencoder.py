@@ -9,6 +9,7 @@
 # You should have received a copy of the GNU General Public License along with molightning ;
 # if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
 import torch
+import math
 from torch import nn
 
 
@@ -44,10 +45,10 @@ class To2D(nn.Module):
 
 
 class From2D(nn.Module):
-    def __init__(self, latent_z):
+    def __init__(self, latent_z, out_length=26):
         super(From2D, self).__init__()
         self.latent_z = latent_z
-        self.out_length = 26  # matches legacy decoder setup
+        self.out_length = out_length
         self.f = nn.Linear(2, self.out_length * latent_z)
 
     def forward(self, x):
@@ -71,10 +72,10 @@ class ToND(nn.Module):
         return z
     
 class FromND(nn.Module):
-    def __init__(self, latent_z, N=2):
+    def __init__(self, latent_z, N=2, out_length=26):
         super(FromND, self).__init__()
         self.latent_z = latent_z
-        self.out_length = 26  # matches legacy decoder setup
+        self.out_length = out_length
         self.f = nn.Linear(N, self.out_length * latent_z)
 
     def forward(self, x):
@@ -83,23 +84,45 @@ class FromND(nn.Module):
         x = x.view(batch, self.latent_z, self.out_length)
         return x
 
+def _compute_out_length(n_atoms, depth):
+    """Compute the decoder's initial spatial size based on target atom count and depth.
+    
+    The decoder has (depth + 3) transpose convolutions, each doubling spatial size.
+    So: final_atoms = out_length * 2^(depth+3)
+    Therefore: out_length = ceil(n_atoms / 2^(depth+3))
+    """
+    n_upsample_layers = depth + 3  # 1 initial + (depth+1) in loop + 1 final
+    return math.ceil(n_atoms / (2 ** n_upsample_layers))
+
+
 class AutoEncoder(nn.Module):    
     '''
     This is the autoencoder used in our `Ramaswamy 2021 paper <https://journals.aps.org/prx/abstract/10.1103/PhysRevX.11.011052>`_.
     It is largely superseded by :func:`molearn.models.foldingnet.AutoEncoder`.
     '''
-    def __init__(self, init_z=32, latent_z=1, latent_dim=2, depth=4, m=1.5, r=0, droprate=None):    
+    def __init__(self, init_z=32, latent_z=1, latent_dim=2, depth=4, m=1.5, r=0, droprate=None, n_atoms=None):    
         '''
         :param int init_z: number of channels in first layer
         :param int latent_z: number of latent channels
-        :param int latent_z: number of latent dimensions
+        :param int latent_dim: number of latent dimensions
         :param int depth: number of layers
         :param float m: scaling factor, dictating number of channels in subsequent layers
         :param int r: number of residual blocks between layers
         :param float droprate: dropout rate
+        :param int n_atoms: number of atoms in target structure. If provided, decoder output is 
+            sized appropriately and sliced to exact atom count. If None, uses legacy out_length=26.
         '''
         
-        super(AutoEncoder, self).__init__()    
+        super(AutoEncoder, self).__init__()
+        
+        # Compute decoder spatial size based on target atoms
+        if n_atoms is not None:
+            self.n_atoms = n_atoms
+            out_length = _compute_out_length(n_atoms, depth)
+        else:
+            self.n_atoms = None
+            out_length = 26  # legacy default
+        self.out_length = out_length
         
         # encoder block    
         eb = nn.ModuleList()    
@@ -124,7 +147,7 @@ class AutoEncoder(nn.Module):
         
         # decoder block
         db = nn.ModuleList()
-        db.append(FromND(latent_z=latent_z, N=latent_dim))
+        db.append(FromND(latent_z=latent_z, N=latent_dim, out_length=out_length))
         
         db.append(nn.ConvTranspose1d(latent_z, int(init_z*m**(depth+1)), 4, 2, 1, bias=False))
         db.append(nn.BatchNorm1d(int(init_z*m**(depth+1))))
@@ -161,7 +184,13 @@ class AutoEncoder(nn.Module):
         for m in self.decoder:
             x = m(x)
 
-        return x.permute(0, 2, 1)
+        x = x.permute(0, 2, 1)
+        
+        # Slice to exact atom count if n_atoms was specified
+        if self.n_atoms is not None:
+            x = x[:, :self.n_atoms, :]
+        
+        return x
 
     def forward(self, x):
         """Full autoencoder pass with input/output shaped ``(batch, atoms, 3)``."""

@@ -492,6 +492,7 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, latent_dim=None, **kwargs):
     ax.legend(handles=legend_patches, loc='upper right')
 
     ax.set_ylabel('RMSD (Å)')
+    ax.set_ylim(0, 10)
     ax.set_xticks(np.arange(len(labels))*2+0.5)
     ax.set_xticklabels(labels, rotation=0)
     title_suffix = f" (Latent dim: {latent_dim})" if latent_dim is not None else ""

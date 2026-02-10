@@ -88,11 +88,9 @@ def _compute_out_length(n_atoms, depth):
     """Compute the decoder's initial spatial size based on target atom count and depth.
     
     The decoder has (depth + 3) transpose convolutions, each doubling spatial size.
-    So: final_atoms = out_length * 2^(depth+3)
-    Therefore: out_length = ceil(n_atoms / 2^(depth+3))
+    Therefore: final_atoms = out_length * 2^(depth+3)
     """
-    n_upsample_layers = depth + 3  # 1 initial + (depth+1) in loop + 1 final
-    return math.ceil(n_atoms / (2 ** n_upsample_layers))
+    return math.ceil(n_atoms / (2 ** (depth + 3)))
 
 
 class AutoEncoder(nn.Module):    

@@ -21,23 +21,23 @@ def main():
     convert_dcd_to_pdb(
     "../data/cleaned_aligned_structure.pdb",
     "../data/aligned_murd_closed_npt_prod_downsampled.dcd",
-    "../data/full_MurD_closed.pdb"
+    "../data/full_murd_closed.pdb"
     )
 
     convert_dcd_to_pdb(
     "../data/cleaned_aligned_structure.pdb",
     "../data/aligned_murd_open_npt_prod_downsampled.dcd",
-    "../data/full_MurD_open.pdb"
+    "../data/full_murd_open.pdb"
     )
 
-    dims = [2]
+    dims = [0.1, 0.2, 0.3]
     
     for d in dims:    
 
         ##### Load Data #####
         data = PDBData()
         data.import_pdb(
-            ["../data/full_MurD_open.pdb", "../data/full_MurD_closed.pdb"]
+            ["../data/full_murd_open.pdb", "../data/full_murd_closed.pdb"]
         )
         data.fix_terminal()
         data.atomselect(atoms=["N", "CA", "CB", "C", "O"])
@@ -46,7 +46,7 @@ def main():
 
         ##### Prepare Trainer #####
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        trainer = OpenMM_Physics_Trainer(device=device)
+        trainer = OpenMM_Physics_Trainer(dims, device=device)
 
         trainer.set_data(data, 
                         batch_size=16, 
@@ -59,7 +59,7 @@ def main():
 
         print(f'running CNN autoencoder model with latent dim: {d}')
         torch.manual_seed(0)
-        model = AutoEncoder(latent_dim=d, n_atoms=data.dataset.shape[1])
+        model = AutoEncoder(latent_dim=2, n_atoms=data.dataset.shape[1])
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 

@@ -120,46 +120,67 @@ class AutoEncoder(nn.Module):
         else:
             self.n_atoms = None
             out_length = 26  # legacy default
+
         self.out_length = out_length
         
+        # ============================================================
         # encoder block    
+        # ============================================================
+
         eb = nn.ModuleList()    
         eb.append(nn.Conv1d(3, init_z, 4, 2, 1, bias=False))    
         eb.append(nn.BatchNorm1d(init_z))    
+
         if droprate is not None:    
             eb.append(nn.Dropout(p=droprate))    
+
         eb.append(nn.ReLU(inplace=True))    
         
         for i in range(depth):
             eb.append(nn.Conv1d(int(init_z*m**i), int(init_z*m**(i+1)), 4, 2, 1, bias=False))
             eb.append(nn.BatchNorm1d(int(init_z*m**(i+1))))
+
             if droprate is not None:
                 eb.append(nn.Dropout(p=droprate))
+
             eb.append(nn.ReLU(inplace=True))
+
             for j in range(r):
                 eb.append(ResidualBlock(int(init_z*m**(i+1))))
-        eb.append(nn.Conv1d(int(init_z*m**depth), latent_z, 4, 2, 1, bias=False))
-        
+
+        eb.append(nn.Conv1d(int(init_z*m**depth), latent_z, 4, 2, 1, bias=False))        
         eb.append(ToND(latent_z=latent_z, N=latent_dim)) # To enable architectures without 2D layers
+        
         self.encoder = eb
         
+        # ============================================================
         # decoder block
+        # ============================================================
+
         db = nn.ModuleList()
         db.append(FromND(latent_z=latent_z, N=latent_dim, out_length=out_length))
         
         db.append(nn.ConvTranspose1d(latent_z, int(init_z*m**(depth+1)), 4, 2, 1, bias=False))
+
         db.append(nn.BatchNorm1d(int(init_z*m**(depth+1))))
+
         if droprate is not None:
             db.append(nn.Dropout(p=droprate))
+
         db.append(nn.ReLU(inplace=True))
+
         for i in reversed(range(depth+1)):
             db.append(nn.ConvTranspose1d(int(init_z*m**(i+1)), int(init_z*m**i), 4, 2, 1, bias=False))
             db.append(nn.BatchNorm1d(int(init_z*m**i)))
+
             if droprate is not None:
                 db.append(nn.Dropout(p=droprate))
+
             db.append(nn.ReLU(inplace=True))
+
             for j in range(r):
                 db.append(ResidualBlock(int(init_z*m**i)))
+
         db.append(nn.ConvTranspose1d(int(init_z*m**(i)), 3, 4, 2, 1))
         self.decoder = db
         

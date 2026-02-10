@@ -30,9 +30,9 @@ def main():
     "../data/full_murd_open.pdb"
     )
 
-    physics_weights = [0.001, 0.01]
+    latent_dims = [2,3,4,5]
     
-    for pw in physics_weights:    
+    for latent_dim in latent_dims:    
 
         ##### Load Data #####
         data = PDBData()
@@ -46,7 +46,7 @@ def main():
 
         ##### Prepare Trainer #####
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        trainer = OpenMM_Physics_Trainer(physics_inter_weight=pw, device=device)
+        trainer = OpenMM_Physics_Trainer(device=device)
 
         trainer.set_data(data, 
                         batch_size=16, 
@@ -57,9 +57,9 @@ def main():
         
         trainer.prepare_physics(remove_NB=True)
 
-        print(f'running CNN autoencoder model with physics_inter_weight: {pw}')
+        print(f'running CNN autoencoder model with latent_dim: {latent_dim}')
         torch.manual_seed(0)
-        model = AutoEncoder(latent_dim=2, n_atoms=data.dataset.shape[1])
+        model = AutoEncoder(latent_dim=latent_dim, n_atoms=data.dataset.shape[1])
         trainer.set_autoencoder(model, out_points=data.dataset.shape[1])
         trainer.prepare_optimiser()
 
@@ -70,13 +70,13 @@ def main():
         fit_results = trainer.run_until_converge(
             patience=16,
             log_filename=f"log.dat",
-            log_folder= f"{OUTPUT_DIR}/{pw}",
-            checkpoint_folder= f"{OUTPUT_DIR}/{pw}",
+            log_folder= f"{OUTPUT_DIR}/{latent_dim}",
+            checkpoint_folder= f"{OUTPUT_DIR}/{latent_dim}",
             verbose=True,
         )
 
         # Convert log file to 3 significant figures
-        log_path = Path(f"{OUTPUT_DIR}/{pw}/log.dat")
+        log_path = Path(f"{OUTPUT_DIR}/{latent_dim}/log.dat")
         if log_path.exists():
             df = pd.read_csv(log_path)
             for col in df.columns:

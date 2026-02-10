@@ -444,7 +444,7 @@ def plot_dope_hist(MA, plot_data=None, fname=None, refine=True, **kwargs):
 
 
 
-def plot_rmsd_hist(MA, plot_data=None, fname=None, latent_dim=None, **kwargs):
+def plot_rmsd_hist(MA, plot_data=None, fname=None, **kwargs):
     """
     Plot distributions of RMSD scores of the chosen datasets.
 
@@ -492,11 +492,10 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, latent_dim=None, **kwargs):
     ax.legend(handles=legend_patches, loc='upper right')
 
     ax.set_ylabel('RMSD (Å)')
-    ax.set_ylim(0, 10)
+    #ax.set_ylim(0, 10)
     ax.set_xticks(np.arange(len(labels))*2+0.5)
     ax.set_xticklabels(labels, rotation=0)
-    title_suffix = f" (Latent dim: {latent_dim})" if latent_dim is not None else ""
-    ax.set_title(f'RMSD {title_suffix}')
+    ax.set_title('RMSD')
     ax.grid(True, linestyle='--', alpha=0.6)
     
     # Save the plot if fname is provided

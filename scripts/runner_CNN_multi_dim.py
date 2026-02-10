@@ -30,7 +30,7 @@ def main():
     "../data/full_murd_open.pdb"
     )
 
-    physics_weights = [0, 0.05]
+    physics_weights = [0.001, 0.01]
     
     for pw in physics_weights:    
 

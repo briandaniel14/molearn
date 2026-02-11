@@ -5,6 +5,8 @@ export SCRATCH_HOME=/disk/scratch/${USER}/molearn
 export OUTPUT_SCRATCH=${SCRATCH_HOME}/results/cnn_multi_dim
 export OUTPUT_HEAD=${MOLEARN_PATH}/results/${TIMESTAMP}
 
+set -e # fail fast
+
 mkdir -p $OUTPUT_HEAD
 mkdir -p $SCRATCH_HOME
 

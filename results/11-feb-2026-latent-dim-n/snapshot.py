@@ -30,7 +30,6 @@ def main():
     "../data/full_murd_open.pdb"
     )
 
-    
     latent_dims = [2,3,4,5]
     
     for latent_dim in latent_dims:    

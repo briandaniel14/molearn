@@ -69,7 +69,7 @@ def main():
             OUTPUT_DIR = os.getenv('OUTPUT_SCRATCH', './cnn_multi_dim')
 
             # Train for 10 epochs with physics_inter_weight=0
-            trainer.run(10,
+            trainer.run(8,
                 log_filename=f"log.dat",
                 log_folder=f"{OUTPUT_DIR}/{n}/{latent_dim}/initial",
                 checkpoint_folder=f"{OUTPUT_DIR}/{n}/{latent_dim}/initial",
@@ -85,7 +85,7 @@ def main():
             trainer.update_hyperparameters(physics_inter_weight=physics_inter_weight)
 
             fit_results = trainer.run_until_converge(
-                patience=16,
+                patience=10,
                 log_filename=f"log.dat",
                 log_folder= f"{OUTPUT_DIR}/{n}/{latent_dim}",
                 checkpoint_folder= f"{OUTPUT_DIR}/{n}/{latent_dim}",

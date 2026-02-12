@@ -13,7 +13,6 @@ from molearn.utils import convert_dcd_to_pdb
 
 
 
-
 def main():
 
     ##### Create PDB files #####
@@ -30,7 +29,7 @@ def main():
     "../data/full_murd_open.pdb"
     )
 
-    for n in [1, 2, 3]:
+    for n in [4, 5]:
         latent_dims = [2,3,4,5,6,7,8,9,10,11,12,13]
         
         for latent_dim in latent_dims:    

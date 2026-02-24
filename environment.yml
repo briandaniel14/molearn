@@ -22,5 +22,8 @@ dependencies:
   - nglview
   - openmmtorchplugin
   - mdtraj
+  - pre-commit
+  - ruff
+  - pytest
   - pip:
       - geomloss

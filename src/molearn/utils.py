@@ -39,3 +39,14 @@ class ShutUp:
         sys.stdout.close()
         sys.stdout = self._stdout
         
+
+
+        serg
+        serg
+        serg
+
+
+
+        KeyError
+
+        erg

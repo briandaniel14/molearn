@@ -35,3 +35,15 @@ tuesday 20th jan 2026
 Don’t just say: first I did this, then I did that. At each choice point, explain the alternatives and why you chose the alternative you did. Bonus points if you tie the reason to principles you’ve learned.
 
 
+
+### Prompt for refactoring the creation of the mesh grid plots 
+
+#file:cnn_multi_dim.ipynb 
+
+Currently I have a lot of messy code for plotting Dope Score visualizations. I want to neaten this into a single protocol which has the following as inputs:
+
+encoded dataset: shape(N x latent_dim)
+mapping: latent_dim -> 2D
+inverse_mapping: 2D -> latent_dim
+
+This protocol should then create the plot with the dope score grid 

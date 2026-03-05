@@ -1,7 +1,7 @@
-ignore = ["F405", "E501"]
 exclude = [
     "src/molearn/",
 ]
 
 [lint]
+ignore = ["F405", "F403", "E501", "C408"]
 select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM", "N", "A", "PL"]

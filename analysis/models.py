@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import dataclass
+from dataclasses import dataclass
 
 import torch
 from torch import Tensor, nn, optim
@@ -92,6 +92,7 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
+
         if (epoch + 1) % 10 == 0:
             print(
                 f"Epoch {epoch + 1}/{c.epochs} — Loss: {epoch_loss / len(loader):.6f}"

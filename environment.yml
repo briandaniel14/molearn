@@ -26,5 +26,6 @@ dependencies:
   - ruff
   - pytest
   - umap-learn
+  - setuptools<=70.0.0
   - pip:
       - geomloss

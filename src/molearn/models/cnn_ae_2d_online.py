@@ -13,6 +13,8 @@ import math
 import torch
 from torch import nn
 
+from .latent_autoencoder import LatentAutoencoder
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, f):
@@ -281,41 +283,17 @@ class AutoEncoder2D(nn.Module):
         self.out_length = _cnn.out_length
         self.n_atoms = n_atoms
 
-        # --- MLP encoder: latent_dim → hyperlatent_dim -------------------
+        # --- MLP bottleneck: latent_dim → hyperlatent_dim → latent_dim --
+        # Uses LatentAutoencoder directly so the architecture is identical
+        # to offline dimensionality-reduction experiments, enabling fair comparison.
 
-        enc_layers = []
-        in_d = latent_dim
-
-        for i in range(num_mlp_layers):
-            out_d = hidden_dim if i < num_mlp_layers - 1 else hyperlatent_dim
-            enc_layers.append(nn.Linear(in_d, out_d))
-
-            if i < num_mlp_layers - 1:
-                enc_layers.append(nn.LayerNorm(out_d))
-                enc_layers.append(nn.Mish())
-                enc_layers.append(nn.Dropout(mlp_dropout))
-
-            in_d = out_d
-
-        self.mlp_encoder = nn.Sequential(*enc_layers)
-
-        # --- MLP decoder: hyperlatent_dim → latent_dim -------------------
-
-        dec_layers = []
-        in_d = hyperlatent_dim
-
-        for i in range(num_mlp_layers):
-            out_d = hidden_dim if i < num_mlp_layers - 1 else latent_dim
-            dec_layers.append(nn.Linear(in_d, out_d))
-
-            if i < num_mlp_layers - 1:
-                dec_layers.append(nn.LayerNorm(out_d))
-                dec_layers.append(nn.Mish())
-                dec_layers.append(nn.Dropout(mlp_dropout))
-
-            in_d = out_d
-
-        self.mlp_decoder = nn.Sequential(*dec_layers)
+        self.latent_ae = LatentAutoencoder(
+            input_dim=latent_dim,
+            latent_dim=hyperlatent_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_mlp_layers,
+            dropout=mlp_dropout,
+        )
 
     # --- CNN helpers (same logic as AutoEncoder.encode / .decode) -----
 
@@ -345,11 +323,11 @@ class AutoEncoder2D(nn.Module):
 
     def encode(self, x):
         """Full encode: (batch, atoms, 3) → (batch, hyperlatent_dim)."""
-        return self.mlp_encoder(self._cnn_encode(x))
+        return self.latent_ae.encode(self._cnn_encode(x))
 
     def decode(self, z):
         """Full decode: (batch, hyperlatent_dim) → (batch, atoms, 3)."""
-        return self._cnn_decode(self.mlp_decoder(z))
+        return self._cnn_decode(self.latent_ae.decode(z))
 
     def encode_latent(self, x):
         """CNN-only encode: (batch, atoms, 3) → (batch, latent_dim)."""
@@ -367,7 +345,6 @@ class AutoEncoder2D(nn.Module):
             as *x* and *z_hyper* is the 2-D hyperlatent code ``(batch, 2)``
         """
         z_latent = self._cnn_encode(x)
-        z_hyper = self.mlp_encoder(z_latent)
-        z_latent_recon = self.mlp_decoder(z_hyper)
+        z_latent_recon, z_hyper = self.latent_ae(z_latent)
         x_recon = self._cnn_decode(z_latent_recon)
         return x_recon, z_hyper

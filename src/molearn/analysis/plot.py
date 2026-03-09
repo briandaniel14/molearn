@@ -983,3 +983,55 @@ def plot_ca_dope_surface(
     plt.show()
 
     return dope_surface, pc1_vals, pc2_vals
+
+def plot_rmsd_by_latent_dim(
+    rmsd_data: Dict[str, Dict[int, List[float]]],
+    latent_dims: Sequence[int],
+    *,
+    fname: Optional[str] = None,
+    title: str = "Median RMSD by Latent Dimension",
+    **savefig_kwargs,
+) -> None:
+    """Plot mean ± std of median reconstruction RMSD across latent dimensions.
+
+    Each dataset key (e.g. "train_both", "test_trans") is plotted as a
+    separate line with error bars on the same axes.
+
+    Parameters
+    ----------
+    rmsd_data : dict[str, dict[int, list[float]]]
+        Nested mapping of ``{label: {latent_dim: [median_rmsd_run1, ...]}}``
+        where the inner list has one median-RMSD value per run.
+    latent_dims : sequence of int
+        Ordered latent dimensions for the x-axis.
+    fname : str, optional
+        If given, save the figure to this path.
+    title : str
+        Plot title.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for label, dim_values in rmsd_data.items():
+        means = [float(np.mean(dim_values[d])) for d in latent_dims]
+        stds = [float(np.std(dim_values[d])) for d in latent_dims]
+        ax.errorbar(
+            latent_dims,
+            means,
+            yerr=stds,
+            marker="o",
+            linewidth=2,
+            markersize=8,
+            capsize=5,
+            label=label,
+        )
+
+    ax.set_xlabel("Latent Dimension")
+    ax.set_ylabel("Median RMSD (Å)")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+
+    if fname is not None:
+        fig.savefig(fname, **savefig_kwargs)
+    plt.show()

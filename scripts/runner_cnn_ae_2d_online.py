@@ -63,7 +63,7 @@ def main():
 
             ##### Training Loop #####
             # Keep training until loss does not improve for 16 consecutive epochs
-            output_dir = os.getenv("OUTPUT_SCRATCH", "./cnn_multi_dim")
+            output_dir = os.getenv("OUTPUT_SCRATCH", "./9-mar-2026-online")
 
             # Train for 8 epochs with physics_inter_weight=0
             trainer.run(

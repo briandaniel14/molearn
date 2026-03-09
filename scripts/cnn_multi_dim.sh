@@ -23,7 +23,7 @@ source /home/${USER}/miniconda3/bin/activate molearn
 echo 'running script'
 cd ${SCRATCH_HOME}/scripts
 
-python runner_CNN_multi_dim.py
+python runner_cnn_multi_dim.py
 
 rsync --archive --update --compress --progress ${OUTPUT_SCRATCH} ${OUTPUT_HEAD}
 

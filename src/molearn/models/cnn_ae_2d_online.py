@@ -8,20 +8,23 @@
 # See the GNU General Public License for more details.
 # You should have received a copy of the GNU General Public License along with molightning ;
 # if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
-import torch
 import math
+
+import torch
 from torch import nn
 
 
 class ResidualBlock(nn.Module):
     def __init__(self, f):
-        super(ResidualBlock, self).__init__()
+        super().__init__()
 
-        conv_block = [nn.Conv1d(f, f, 3, stride=1, padding=1, bias=False),
-                      nn.BatchNorm1d(f),
-                      nn.ReLU(inplace=True),
-                      nn.Conv1d(f, f, 3, stride=1, padding=1, bias=False),
-                      nn.BatchNorm1d(f)]
+        conv_block = [
+            nn.Conv1d(f, f, 3, stride=1, padding=1, bias=False),
+            nn.BatchNorm1d(f),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(f, f, 3, stride=1, padding=1, bias=False),
+            nn.BatchNorm1d(f),
+        ]
 
         self.conv_block = nn.Sequential(*conv_block)
 
@@ -30,25 +33,26 @@ class ResidualBlock(nn.Module):
 
 
 class ToND(nn.Module):
-    def __init__(self, latent_z, N=2):
-        super(ToND, self).__init__()
+    def __init__(self, latent_z, n=2):
+        super().__init__()
         self.latent_z = latent_z
-        self.N = N
-        self.proj = nn.Linear(N * latent_z, N)
+        self.n = n
+        self.proj = nn.Linear(n * latent_z, n)
 
     def forward(self, x):
-        z = torch.nn.functional.adaptive_avg_pool2d(x, output_size=(self.N, 1))
+        z = torch.nn.functional.adaptive_avg_pool2d(x, output_size=(self.n, 1))
         z = torch.sigmoid(z)
         z = z.view(z.size(0), -1)
         z = self.proj(z)
         return z
-    
+
+
 class FromND(nn.Module):
-    def __init__(self, latent_z, N=2, out_length=26):
-        super(FromND, self).__init__()
+    def __init__(self, latent_z, n=2, out_length=26):
+        super().__init__()
         self.latent_z = latent_z
         self.out_length = out_length
-        self.f = nn.Linear(N, self.out_length * latent_z)
+        self.f = nn.Linear(n, self.out_length * latent_z)
 
     def forward(self, x):
         batch = x.size(0)
@@ -56,22 +60,34 @@ class FromND(nn.Module):
         x = x.view(batch, self.latent_z, self.out_length)
         return x
 
+
 def _compute_out_length(n_atoms, depth):
     """Compute the decoder's initial spatial size based on target atom count and depth.
-    
+
     The decoder has (depth + 3) transpose convolutions, each doubling spatial size.
     Therefore: final_atoms = out_length * 2^(depth+3)
     """
     return math.ceil(n_atoms / (2 ** (depth + 3)))
 
 
-class AutoEncoder(nn.Module):    
-    '''
+class AutoEncoder(nn.Module):
+    """
     This is the autoencoder used in our `Ramaswamy 2021 paper <https://journals.aps.org/prx/abstract/10.1103/PhysRevX.11.011052>`_.
     It is largely superseded by :func:`molearn.models.foldingnet.AutoEncoder`.
-    '''
-    def __init__(self, n_atoms, init_z=32, latent_z=1, latent_dim=2, depth=4, m=1.5, r=0, droprate=None):    
-        '''
+    """
+
+    def __init__(
+        self,
+        n_atoms,
+        init_z=32,
+        latent_z=1,
+        latent_dim=2,
+        depth=4,
+        m=1.5,
+        r=0,
+        droprate=None,
+    ):
+        """
         :param int init_z: number of channels in first layer
         :param int latent_z: number of latent channels
         :param int latent_dim: number of latent dimensions
@@ -79,90 +95,102 @@ class AutoEncoder(nn.Module):
         :param float m: scaling factor, dictating number of channels in subsequent layers
         :param int r: number of residual blocks between layers
         :param float droprate: dropout rate
-        :param int n_atoms: number of atoms in target structure. If provided, decoder output is 
+        :param int n_atoms: number of atoms in target structure. If provided, decoder output is
             sized appropriately and sliced to exact atom count. If None, uses legacy out_length=26.
-        '''
-        
-        super(AutoEncoder, self).__init__()
-        
+        """
+
+        super().__init__()
+
         # Compute decoder spatial size based on target atoms
         self.n_atoms = n_atoms
         self.out_length = _compute_out_length(self.n_atoms, depth)
-        
+
         # ============================================================
-        # encoder block    
+        # encoder block
         # ============================================================
 
-        eb = nn.ModuleList()    
-        eb.append(nn.Conv1d(3, init_z, 4, 2, 1, bias=False))    
-        eb.append(nn.BatchNorm1d(init_z))    
+        eb = nn.ModuleList()
+        eb.append(nn.Conv1d(3, init_z, 4, 2, 1, bias=False))
+        eb.append(nn.BatchNorm1d(init_z))
 
-        if droprate is not None:    
-            eb.append(nn.Dropout(p=droprate))    
+        if droprate is not None:
+            eb.append(nn.Dropout(p=droprate))
 
-        eb.append(nn.ReLU(inplace=True))    
-        
+        eb.append(nn.ReLU(inplace=True))
+
         for i in range(depth):
-            eb.append(nn.Conv1d(int(init_z*m**i), int(init_z*m**(i+1)), 4, 2, 1, bias=False))
-            eb.append(nn.BatchNorm1d(int(init_z*m**(i+1))))
+            eb.append(
+                nn.Conv1d(
+                    int(init_z * m**i), int(init_z * m ** (i + 1)), 4, 2, 1, bias=False
+                )
+            )
+            eb.append(nn.BatchNorm1d(int(init_z * m ** (i + 1))))
 
             if droprate is not None:
                 eb.append(nn.Dropout(p=droprate))
 
             eb.append(nn.ReLU(inplace=True))
 
-            for j in range(r):
-                eb.append(ResidualBlock(int(init_z*m**(i+1))))
+            for _ in range(r):
+                eb.append(ResidualBlock(int(init_z * m ** (i + 1))))
 
-        eb.append(nn.Conv1d(int(init_z*m**depth), latent_z, 4, 2, 1, bias=False))        
-        eb.append(ToND(latent_z=latent_z, N=latent_dim)) # To enable architectures without 2D layers
-        
+        eb.append(nn.Conv1d(int(init_z * m**depth), latent_z, 4, 2, 1, bias=False))
+        eb.append(
+            ToND(latent_z=latent_z, n=latent_dim)
+        )  # To enable architectures without 2D layers
+
         self.encoder = eb
-        
+
         # ============================================================
         # decoder block
         # ============================================================
 
         db = nn.ModuleList()
-        db.append(FromND(latent_z=latent_z, N=latent_dim, out_length=self.out_length))
-        
-        db.append(nn.ConvTranspose1d(latent_z, int(init_z*m**(depth+1)), 4, 2, 1, bias=False))
+        db.append(FromND(latent_z=latent_z, n=latent_dim, out_length=self.out_length))
 
-        db.append(nn.BatchNorm1d(int(init_z*m**(depth+1))))
+        db.append(
+            nn.ConvTranspose1d(
+                latent_z, int(init_z * m ** (depth + 1)), 4, 2, 1, bias=False
+            )
+        )
+
+        db.append(nn.BatchNorm1d(int(init_z * m ** (depth + 1))))
 
         if droprate is not None:
             db.append(nn.Dropout(p=droprate))
 
         db.append(nn.ReLU(inplace=True))
 
-        for i in reversed(range(depth+1)):
-            db.append(nn.ConvTranspose1d(int(init_z*m**(i+1)), int(init_z*m**i), 4, 2, 1, bias=False))
-            db.append(nn.BatchNorm1d(int(init_z*m**i)))
+        for i in reversed(range(depth + 1)):
+            db.append(
+                nn.ConvTranspose1d(
+                    int(init_z * m ** (i + 1)), int(init_z * m**i), 4, 2, 1, bias=False
+                )
+            )
+            db.append(nn.BatchNorm1d(int(init_z * m**i)))
 
             if droprate is not None:
                 db.append(nn.Dropout(p=droprate))
 
             db.append(nn.ReLU(inplace=True))
 
-            for j in range(r):
-                db.append(ResidualBlock(int(init_z*m**i)))
+            for _ in range(r):
+                db.append(ResidualBlock(int(init_z * m**i)))
 
-        db.append(nn.ConvTranspose1d(int(init_z*m**(i)), 3, 4, 2, 1))
+        db.append(nn.ConvTranspose1d(int(init_z * m ** (i)), 3, 4, 2, 1))
         self.decoder = db
-        
+
     def encode(self, x):
         """Encode coordinates shaped ``(batch, atoms, 3)`` or ``(batch, 3, atoms)``."""
 
-        if x.shape[2] == 3 and x.shape[1] != 3:
+        if x.shape[2] == 3 and x.shape[1] != 3:  # noqa: PLR2004
             x = x.permute(0, 2, 1)
 
         for m in self.encoder:
-            if isinstance(m, (ToND)):
-                x = m(x.unsqueeze(-1))
-            else:
-                x = m(x)
+            x = m(x.unsqueeze(-1)) if isinstance(m, ToND) else m(x)
+
         return x
-    
+
     def decode(self, x):
         """Decode the latent representation back to ``(batch, atoms, 3)`` coordinates."""
 
@@ -170,11 +198,11 @@ class AutoEncoder(nn.Module):
             x = m(x)
 
         x = x.permute(0, 2, 1)
-        
+
         # Slice to exact atom count if n_atoms was specified
         if self.n_atoms is not None:
-            x = x[:, :self.n_atoms, :]
-        
+            x = x[:, : self.n_atoms, :]
+
         return x
 
     def forward(self, x):
@@ -185,7 +213,7 @@ class AutoEncoder(nn.Module):
 
 
 class AutoEncoder2D(nn.Module):
-    '''
+    """
     End-to-end autoencoder with a 2-D hyperlatent bottleneck.
 
     Data flow per conformation::
@@ -213,7 +241,7 @@ class AutoEncoder2D(nn.Module):
     :param int hidden_dim: width of MLP hidden layers
     :param int num_mlp_layers: depth of MLP encoder and decoder
     :param float mlp_dropout: dropout rate for MLP layers
-    '''
+    """
 
     def __init__(
         self,
@@ -259,7 +287,6 @@ class AutoEncoder2D(nn.Module):
         in_d = latent_dim
 
         for i in range(num_mlp_layers):
-
             out_d = hidden_dim if i < num_mlp_layers - 1 else hyperlatent_dim
             enc_layers.append(nn.Linear(in_d, out_d))
 
@@ -278,7 +305,6 @@ class AutoEncoder2D(nn.Module):
         in_d = hyperlatent_dim
 
         for i in range(num_mlp_layers):
-
             out_d = hidden_dim if i < num_mlp_layers - 1 else latent_dim
             dec_layers.append(nn.Linear(in_d, out_d))
 
@@ -294,17 +320,13 @@ class AutoEncoder2D(nn.Module):
     # --- CNN helpers (same logic as AutoEncoder.encode / .decode) -----
 
     def _cnn_encode(self, x):
-
         """(batch, atoms, 3) -> (batch, latent_dim)"""
 
-        if x.shape[2] == 3 and x.shape[1] != 3:
+        if x.shape[2] == 3 and x.shape[1] != 3:  # noqa: PLR2004
             x = x.permute(0, 2, 1)
 
         for layer in self.cnn_encoder:
-            if isinstance(layer, ToND):
-                x = layer(x.unsqueeze(-1))
-            else:
-                x = layer(x)
+            x = layer(x.unsqueeze(-1)) if isinstance(layer, ToND) else layer(x)
 
         return x
 
@@ -314,7 +336,7 @@ class AutoEncoder2D(nn.Module):
             x = layer(x)
         x = x.permute(0, 2, 1)
         if self.n_atoms is not None:
-            x = x[:, :self.n_atoms, :]
+            x = x[:, : self.n_atoms, :]
         return x
 
     # ------------------------------------------------------------------ #

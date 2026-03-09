@@ -107,10 +107,18 @@ def _plot_metric_histograms(
             decoded_metric = entry["decoded"]
             dataset_color, decoded_color = entry["colors"]
             label = entry["label"]
+            # Compute shared bin edges so both histograms align
+            decoded_flat = _flatten(decoded_metric[metric_name])
+            if dataset_metric is not None:
+                dataset_flat = _flatten(dataset_metric[metric_name])
+                combined = np.concatenate([dataset_flat, decoded_flat])
+            else:
+                combined = decoded_flat
+            bin_edges = np.linspace(combined.min(), combined.max(), bins + 1)
             if dataset_metric is not None:
                 ax.hist(
-                    _flatten(dataset_metric[metric_name]),
-                    bins=bins,
+                    dataset_flat,
+                    bins=bin_edges,
                     color=dataset_color,
                     alpha=0.5,
                     density=density,
@@ -118,8 +126,8 @@ def _plot_metric_histograms(
                     label=f"{label} Dataset{legend_suffix}",
                 )
             ax.hist(
-                _flatten(decoded_metric[metric_name]),
-                bins=bins,
+                decoded_flat,
+                bins=bin_edges,
                 color=decoded_color,
                 alpha=0.5,
                 density=density,
@@ -167,7 +175,7 @@ def _overlay_latent_points(ax, MA, plot_data):
     return legend_handles
 
 
-def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwargs):
+def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, bond_types=None, **kwargs):
     """
     Plot bond-length distributions for original and decoded structures.
     
@@ -178,6 +186,8 @@ def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwar
                            Format: [(key, label, colour), ...]
     :param int bins: No of bins in the histogram.
     :param Path wkdir: A directory where figures are saved.
+    :param list bond_types: Optional list of bond types to plot, e.g. ``["N-CA"]``.
+                            If None, all available bond types are plotted.
 
     :return: None
     """
@@ -193,6 +203,8 @@ def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwar
         dataset_key="dataset_bondlen",
         decoded_key="decoded_bondlen",
     )
+    if bond_types is not None:
+        metric_names = [m for m in metric_names if m in bond_types]
     _plot_metric_histograms(
         entries,
         metric_names,

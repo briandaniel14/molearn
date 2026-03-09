@@ -74,6 +74,7 @@ class TrainConfig:
     lr: float = 1e-3
     batch_size: int = 64
     epochs: int = 200
+    verbose: bool = False
 
 
 def train_loop(c: TrainConfig) -> LatentAutoencoder:
@@ -93,7 +94,7 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
             optimizer.step()
             epoch_loss += loss.item()
 
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 10 == 0 and c.verbose:
             print(
                 f"Epoch {epoch + 1}/{c.epochs} — Loss: {epoch_loss / len(loader):.6f}"
             )

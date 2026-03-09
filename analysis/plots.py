@@ -183,3 +183,85 @@ def plot_dope_mesh(  # noqa: PLR0913
     plt.show()
 
     return dope_surface, d1_vals, d2_vals
+
+
+def plot_path_on_mesh(
+    path: list[np.ndarray],
+    mapping: Callable[[np.ndarray], np.ndarray],
+    ax: mpl.axes.Axes | None = None,
+    color: str = "red",
+    linewidth: float = 2.0,
+    marker_size: int = 8,
+    label: str = "Path",
+) -> mpl.axes.Axes:
+    """Plot a path through latent space on the current DOPE mesh.
+
+    Call this immediately after plot_dope_mesh to overlay the path.
+
+    Parameters
+    ----------
+    path : list[np.ndarray]
+        List of latent codes along the path, each shape (latent_dim,)
+    mapping : callable
+        (N, latent_dim) -> (N, 2) function (e.g. pca.transform, reducer.transform)
+    ax : matplotlib.axes.Axes or None
+        Axes to plot on. If None, uses current axes.
+    color : str
+        Color for the path line
+    linewidth : float
+        Width of the path line
+    marker_size : int
+        Size of start/end markers
+    label : str
+        Label for the path in the legend
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        The axes object
+    """
+    if not ax:
+        ax = plt.gca()
+
+    # Map path points to 2D
+    path_array = np.vstack(path)
+    path_2d = mapping(path_array)
+
+    # Plot the path as a line
+    ax.plot(
+        path_2d[:, 0],
+        path_2d[:, 1],
+        color=color,
+        linewidth=linewidth,
+        label=label,
+        alpha=0.8,
+        zorder=100,
+    )
+
+    # Mark start and end
+    ax.plot(
+        path_2d[0, 0],
+        path_2d[0, 1],
+        marker="o",
+        color=color,
+        markersize=marker_size,
+        markeredgecolor="black",
+        markeredgewidth=1.5,
+        zorder=101,
+    )
+    ax.plot(
+        path_2d[-1, 0],
+        path_2d[-1, 1],
+        marker="s",
+        color=color,
+        markersize=marker_size,
+        markeredgecolor="black",
+        markeredgewidth=1.5,
+        zorder=101,
+    )
+
+    # Update legend if there's existing one
+    if ax.get_legend():
+        ax.legend(loc="upper right")
+
+    return ax

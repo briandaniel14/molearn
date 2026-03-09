@@ -5,3 +5,4 @@
 - Finish reading Masters Latent_z variation paper
 - Reconstruction RMSD plots
 - A* bs
+- Add geometry maintaining obj func term

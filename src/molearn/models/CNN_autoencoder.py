@@ -27,35 +27,7 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x):
         return x + self.conv_block(x)
-        # return torch.relu(x + self.conv_block(x))       #earlier runs were with 'return x + self.conv_block(x)' but not an issue (really?)
 
-
-class To2D(nn.Module):
-    def __init__(self, latent_z):
-        super(To2D, self).__init__()
-        self.latent_z = latent_z
-        self.proj = nn.Linear(2 * latent_z, 2)
-
-    def forward(self, x):
-        z = torch.nn.functional.adaptive_avg_pool2d(x, output_size=(2, 1))
-        z = torch.sigmoid(z)
-        z = z.view(z.size(0), -1)
-        z = self.proj(z)
-        return z
-
-
-class From2D(nn.Module):
-    def __init__(self, latent_z, out_length=26):
-        super(From2D, self).__init__()
-        self.latent_z = latent_z
-        self.out_length = out_length
-        self.f = nn.Linear(2, self.out_length * latent_z)
-
-    def forward(self, x):
-        batch = x.size(0)
-        x = self.f(x)
-        x = x.view(batch, self.latent_z, self.out_length)
-        return x
 
 class ToND(nn.Module):
     def __init__(self, latent_z, N=2):
@@ -191,7 +163,7 @@ class AutoEncoder(nn.Module):
             x = x.permute(0, 2, 1)
 
         for m in self.encoder:
-            if isinstance(m, (ToND, To2D)):
+            if isinstance(m, (ToND)):
                 x = m(x.unsqueeze(-1))
             else:
                 x = m(x)

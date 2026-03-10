@@ -1,9 +1,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import numpy as np
 import torch
+from scipy.stats import wasserstein_distance
 from torch import Tensor, optim
 
+from molearn.analysis.analyser import MolearnAnalysis
 from molearn.models.latent_autoencoder import LatentAutoencoder
 
 
@@ -45,3 +48,38 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
             )
 
     return c.model
+
+
+def get_inversion_ratios(ma: MolearnAnalysis, plot_data: list) -> list[float, ...]:
+    """Return the fraction of decoded structures with zero chirality inversions for each entry in plot_data."""
+    ratios = []
+
+    for key, *_ in plot_data:
+        decoded = ma.get_inversions(key)["decoded_inversions"]
+        ratios.append(float(np.sum(decoded == 0) / len(decoded)))
+
+    return ratios
+
+
+def get_wasserstein_distances(
+    ma: MolearnAnalysis, plot_data: list, bond_types: list[str] | None = None
+) -> dict[str, dict[str, float]]:
+    """Return Wasserstein distances between dataset and decoded bond length distributions.
+
+    Returns a dict keyed by dataset key, each mapping bond type -> distance.
+    """
+    results: dict[str, dict[str, float]] = {}
+
+    for key, *_ in plot_data:
+        bl = ma.get_bondlengths(key)
+        dataset_bl = bl["dataset_bondlen"]
+        decoded_bl = bl["decoded_bondlen"]
+
+        types = bond_types if bond_types is not None else list(dataset_bl.keys())
+        results[key] = {}
+        for bt in types:
+            results[key][bt] = float(
+                wasserstein_distance(dataset_bl[bt].flatten(), decoded_bl[bt].flatten())
+            )
+
+    return results

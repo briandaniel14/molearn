@@ -1,4 +1,5 @@
 ### TODO
+- Score cards
 - Create inline version and train
 - Evaluation of different hyperrep methods
 - Decouple loss function from model

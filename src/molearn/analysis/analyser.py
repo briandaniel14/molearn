@@ -20,6 +20,7 @@ import torch
 import torch.optim
 from pathlib import Path
 from typing import Dict, Iterable, Tuple, Union
+from torch import Tensor
 
 try:
     # from modeller import *
@@ -65,12 +66,12 @@ warnings.filterwarnings("ignore")
 
 @dataclass
 class DatasetBundle:
-    dataset: torch.Tensor
-    std: torch.Tensor | float
-    mean: torch.Tensor | float
+    dataset: Tensor
+    std: Tensor | float
+    mean: Tensor | float
     standardize: bool
 
-    def scale(self) -> torch.Tensor:
+    def scale(self) -> Tensor:
         return self.dataset * self.std + self.mean
 
     @property
@@ -233,7 +234,7 @@ class MolearnAnalysis:
         """
         self._encoded[key] = torch.tensor(coords).float()
 
-    def get_decoded(self, key, update=False, scale=False):
+    def get_decoded(self, key, update=False, scale=False) -> Tensor:
         """
         :param str key: key pointing to a dataset previously loaded with :func:`set_dataset <molearn.analysis.MolearnAnalysis.set_dataset>`
         :param bool update: if True, re-decode and overwrite the existing data

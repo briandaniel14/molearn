@@ -10,15 +10,73 @@ from molearn.analysis.analyser import MolearnAnalysis
 from molearn.models.latent_autoencoder import LatentAutoencoder
 
 
-def rmsd_loss(x: Tensor, x_recon: Tensor) -> Tensor:
+def rmsd(x: Tensor, x_recon: Tensor) -> Tensor:
     return torch.sqrt(torch.mean((x - x_recon) ** 2))
+
+
+# ============================================================================
+# Loss functions
+# ============================================================================
+
+
+def latent_rmsd_loss(enc_batch: Tensor, enc_recon: Tensor, raw_batch: Tensor) -> Tensor:
+    return rmsd(enc_batch, enc_recon)
+
+
+def latent_pairwise_stress_loss(
+    enc_batch: Tensor, enc_recon: Tensor, raw_batch: Tensor
+) -> Tensor:
+    flat_in = enc_batch.reshape(enc_batch.size(0), -1)
+    flat_out = enc_recon.reshape(enc_recon.size(0), -1)
+
+    d_in = torch.cdist(flat_in, flat_in)
+    d_out = torch.cdist(flat_out, flat_out)
+
+    mask = torch.triu(torch.ones_like(d_in), diagonal=1).bool()
+    return ((d_in[mask] - d_out[mask]) ** 2).sum() / (d_in[mask] ** 2 + 1e-8).sum()
+
+
+def raw_rmsd_loss(ma: MolearnAnalysis):
+    for p in ma.network.parameters():
+        p.requires_grad_(False)
+
+    def loss_fn(enc_batch: Tensor, enc_recon: Tensor, raw_batch: Tensor) -> Tensor:
+        raw_recon = ma.network.decode(enc_recon)
+        return rmsd(raw_batch, raw_recon)
+
+    return loss_fn
+
+
+def raw_pairwise_stress_loss(ma: MolearnAnalysis):
+    for p in ma.network.parameters():
+        p.requires_grad_(False)
+
+    def loss_fn(enc_batch: Tensor, enc_recon: Tensor, raw_batch: Tensor) -> Tensor:
+        raw_recon = ma.network.decode(enc_recon)
+
+        flat_in = raw_batch.reshape(raw_batch.size(0), -1)
+        flat_out = raw_recon.reshape(raw_recon.size(0), -1)
+
+        d_in = torch.cdist(flat_in, flat_in)
+        d_out = torch.cdist(flat_out, flat_out)
+
+        mask = torch.triu(torch.ones_like(d_in), diagonal=1).bool()
+        return ((d_in[mask] - d_out[mask]) ** 2).sum() / (d_in[mask] ** 2 + 1e-8).sum()
+
+    return loss_fn
+
+
+# ============================================================================
+# Train functions
+# ============================================================================
 
 
 @dataclass
 class TrainConfig:
     model: LatentAutoencoder
-    encoded_data: Tensor
-    loss_func: Callable[[Tensor, Tensor], Tensor] = rmsd_loss
+    ma: MolearnAnalysis
+    key: str
+    loss_func: Callable[[Tensor, Tensor, Tensor], Tensor]
     lr: float = 1e-3
     batch_size: int = 64
     epochs: int = 200
@@ -26,7 +84,10 @@ class TrainConfig:
 
 
 def train_loop(c: TrainConfig) -> LatentAutoencoder:
-    dataset = torch.utils.data.TensorDataset(c.encoded_data)
+    encoded = c.ma.get_encoded(key=c.key)
+    raw = c.ma.get_dataset(key=c.key)
+    dataset = torch.utils.data.TensorDataset(encoded, raw)
+
     loader = torch.utils.data.DataLoader(dataset, batch_size=c.batch_size, shuffle=True)
 
     optimizer = optim.Adam(c.model.parameters(), lr=c.lr)
@@ -34,9 +95,9 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
 
     for epoch in range(c.epochs):
         epoch_loss: float = 0.0
-        for (batch,) in loader:
-            x_recon, z = c.model(batch)
-            loss = c.loss_func(batch, x_recon)
+        for enc_batch, raw_batch in loader:
+            enc_recon, z = c.model(enc_batch)
+            loss = c.loss_func(enc_batch, enc_recon, raw_batch)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -48,6 +109,11 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
             )
 
     return c.model
+
+
+# ============================================================================
+# Scoring statistics
+# ============================================================================
 
 
 def get_inversion_ratios(ma: MolearnAnalysis, plot_data: list) -> list[float, ...]:

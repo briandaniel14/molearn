@@ -1,17 +1,10 @@
 ### TODO
 
-- Score cards
-    - Redo RMSD
-    - CCC
+- Redo stat calculation so it's way more efficient
+ - only encode decode once (save all stats on each loop)
+ - save on the run level (leave mean / std calc for statistics analysis notebook)
 
-- Create scoring function
-    - run / var in
-    - fetches 5 scores (RMSD mean, RMSD std, wasserstein distance, inversion ratios, CCC) aggregated across runs (from csvs)
-    - returns these 5 scores
-    - Additionally states if model passes checks (inversion ratio > 0, wasserstein distance high enough, CCC high enough, etc)
-    - thresholds defineable by user
-    - run these everything
-    - plot table with 
+ 
 
 - train different MLPs and compare them with UMAP and PCA?
     - How to decide mlp loss funcs?
@@ -19,6 +12,7 @@
     - Use same table based approach? Need to validate eval approach?
     - 
 
+- Do runs 6-20 for ld 2-16
 
 - Create inline version and train (with new obj function)
     - After evaluating MLP loss funcs

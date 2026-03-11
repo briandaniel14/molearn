@@ -292,7 +292,7 @@ def plot_angle_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwargs):
     )
 
 
-def plot_inversion_hist(MA, plot_data, fname=None, **kwargs):
+def plot_inversion_hist(MA, show_plot: bool, plot_data, fname=None,  **kwargs, ):
     """
     Plot distributions of number of D-amino acids in each structure in datasets as bar plots
 
@@ -314,6 +314,7 @@ def plot_inversion_hist(MA, plot_data, fname=None, **kwargs):
     data_pairs = []
     labels = []
     colors = []
+    ratios = []
     dataset_color = "gray"  # Set dataset bars to gray
     
     for key, label, decoded_color in plot_data:
@@ -325,6 +326,8 @@ def plot_inversion_hist(MA, plot_data, fname=None, **kwargs):
         data_pairs.append((dataset_inversions, decoded_inversions))
         labels.append(label)
         colors.append((dataset_color if dataset_inversions is not None else None, decoded_color))
+        ratios.append(float(np.sum(decoded_inversions == 0) / len(decoded_inversions)))
+
     
     num_plots = len(data_pairs)
     fig, axes = plt.subplots(num_plots, 1, figsize=(8, 3 * num_plots), sharex=True)
@@ -346,12 +349,15 @@ def plot_inversion_hist(MA, plot_data, fname=None, **kwargs):
         ax.legend()
     
     axes[-1].set_xlabel("D-amino acids count")
-    
+    axes[-1].set_xlim(-0.5, 20.5)
     plt.tight_layout()
     
     if fname is not None:
         plt.savefig(fname, **kwargs)
-    plt.show()
+    if show_plot:
+        plt.show()
+
+    return ratios
     
 
 def plot_dope_hist(MA, plot_data=None, fname=None, refine=True, **kwargs):

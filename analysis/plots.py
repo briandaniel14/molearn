@@ -6,6 +6,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from scipy.spatial.distance import pdist
 
 from molearn.analysis.analyser import MolearnAnalysis
 
@@ -265,3 +266,80 @@ def plot_path_on_mesh(
         ax.legend(loc="upper right")
 
     return ax
+
+
+def plot_pairwise_rmsd(
+    ma: MolearnAnalysis,
+    key: str,
+    show_plot: bool,
+    *,
+    max_pairs: int = 5000,
+    seed: int = 42,
+    title: str | None = None,
+    fname: str | None = None,
+    **savefig_kwargs,
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """Scatter plot of dataset vs decoded pairwise RMSD with CCC.
+
+    For N conformations there are N(N-1)/2 pairs. When this exceeds
+    *max_pairs*, a random subsample of pairs is drawn for plotting.
+
+    Returns (ccc, dataset_pw_rmsd, decoded_pw_rmsd).
+    """
+    dataset = ma.get_dataset(key, scale=True)  # (N, atoms, 3)
+    decoded = ma.get_decoded(key, scale=True)  # (N, atoms, 3)
+    n_atoms = dataset.shape[1]
+
+    flat_ds = dataset.reshape(dataset.shape[0], -1).numpy()  # (N, atoms*3)
+    flat_dc = decoded.reshape(decoded.shape[0], -1).numpy()
+
+    # pairwise L2 distances, normalised to per-atom RMSD
+
+    pw_ds = pdist(flat_ds, "euclidean") / np.sqrt(n_atoms)
+    pw_dc = pdist(flat_dc, "euclidean") / np.sqrt(n_atoms)
+
+    # subsample if too many pairs
+    if len(pw_ds) > max_pairs:
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(len(pw_ds), size=max_pairs, replace=False)
+        pw_ds_plot = pw_ds[idx]
+        pw_dc_plot = pw_dc[idx]
+    else:
+        pw_ds_plot = pw_ds
+        pw_dc_plot = pw_dc
+
+    ccc = _concordance_correlation(pw_ds_plot, pw_dc_plot)
+
+    # plot
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(pw_ds_plot, pw_dc_plot, s=1, alpha=0.3, rasterized=True)
+
+    lim = max(pw_ds_plot.max(), pw_dc_plot.max()) * 1.05
+    ax.plot([0, lim], [0, lim], "r-", linewidth=1)
+
+    ax.set_xlim(0, lim)
+    ax.set_ylim(0, lim)
+    ax.set_xlabel("Dataset pairwise RMSD (Å)")
+    ax.set_ylabel("Decoded pairwise RMSD (Å)")
+    ax.set_aspect("equal")
+    ax.text(0.05, 0.92, f"CCC={ccc:.3f}", transform=ax.transAxes, fontsize=12)
+
+    if title:
+        ax.set_title(title)
+
+    plt.tight_layout()
+    if fname:
+        plt.savefig(fname, **savefig_kwargs)
+
+    if show_plot:
+        plt.show()
+
+    return ccc, pw_ds, pw_dc
+
+
+def _concordance_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """Lin's concordance correlation coefficient."""
+    mx, my = x.mean(), y.mean()
+    sx, sy = x.var(), y.var()
+    sxy = np.mean((x - mx) * (y - my))
+    return float(2 * sxy / (sx + sy + (mx - my) ** 2))

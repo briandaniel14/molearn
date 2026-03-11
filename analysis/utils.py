@@ -116,7 +116,7 @@ def train_loop(c: TrainConfig) -> LatentAutoencoder:
 # ============================================================================
 
 
-def get_inversion_ratios(ma: MolearnAnalysis, plot_data: list) -> list[float, ...]:
+def get_inversion_ratios(ma: MolearnAnalysis, plot_data: list) -> list[float, float]:
     """Return the fraction of decoded structures with zero chirality inversions for each entry in plot_data."""
     ratios = []
 
@@ -149,3 +149,36 @@ def get_wasserstein_distances(
             )
 
     return results
+
+
+# ===============================================
+# hyperlatent molearn analysis for plotting
+# ===============================================
+
+
+def make_hyperlatent_ma(
+    base_ma: MolearnAnalysis,
+    mapping: Callable[[np.ndarray], np.ndarray],
+    inverse_mapping: Callable[[np.ndarray], np.ndarray],
+    keys: list[str] = ("train_both", "test_trans"),
+) -> MolearnAnalysis:
+    hyper_ma = MolearnAnalysis()
+    hyper_ma.batch_size = base_ma.batch_size
+    hyper_ma.processes = base_ma.processes
+    hyper_ma.device = base_ma.device
+    hyper_ma.network = base_ma.network
+    hyper_ma.mol = base_ma.mol
+    hyper_ma.meanval = base_ma.meanval
+    hyper_ma.stdval = base_ma.stdval
+    hyper_ma.n_atoms = base_ma.n_atoms
+    hyper_ma.atoms = base_ma.atoms
+    hyper_ma._datasets = base_ma._datasets
+
+    with torch.no_grad():
+        for key in keys:
+            encoded = base_ma.get_encoded(key).numpy()
+            projected = mapping(encoded)  # D → 2
+            recon = inverse_mapping(projected)  # 2 → D
+            hyper_ma.set_encoded(key, recon)
+
+    return hyper_ma

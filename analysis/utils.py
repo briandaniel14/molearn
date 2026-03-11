@@ -1,11 +1,14 @@
 import gc
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from scipy.spatial.distance import pdist
 from scipy.stats import wasserstein_distance
+from sklearn.decomposition import PCA
 from torch import Tensor, optim
 
 from molearn.analysis.analyser import MolearnAnalysis
@@ -162,15 +165,16 @@ def concordance_correlation(x: np.ndarray, y: np.ndarray) -> float:
 
 def get_all_stats(
     mas,
-    variables,
+    varis,
     runs,
     keys,
+    save_dir: Path,
     random_state,
     max_pairs=5000,
 ) -> list:
     rows = []
 
-    for var in variables:
+    for var in varis:
         for run in runs:
             ma = mas[run][var]
 
@@ -229,13 +233,15 @@ def get_all_stats(
                     }
                 )
 
-            # free GPU/CPU memory before next model
             ma._decoded.clear()
             ma._encoded.clear()
             gc.collect()
             torch.cuda.empty_cache()
 
-    return rows
+    df_stats = pd.DataFrame(rows)
+    df_stats.sort_values(["var", "run", "key"]).to_csv(save_dir, index=False)
+
+    return df_stats
 
 
 # ===============================================
@@ -245,6 +251,7 @@ def get_all_stats(
 
 def make_hyperlatent_ma(
     base_ma: MolearnAnalysis,
+    encoded_by_keys: dict[str, Tensor],
     mapping: Callable[[np.ndarray], np.ndarray],
     inverse_mapping: Callable[[np.ndarray], np.ndarray],
     keys: list[str] = ("train_both", "test_trans"),
@@ -263,9 +270,46 @@ def make_hyperlatent_ma(
 
     with torch.no_grad():
         for key in keys:
-            encoded = base_ma.get_encoded(key).numpy()
+            encoded = encoded_by_keys[key].numpy()
             projected = mapping(encoded)  # D → 2
             recon = inverse_mapping(projected)  # 2 → D
             hyper_ma.set_encoded(key, recon)
 
     return hyper_ma
+
+
+def make_all_hyperlatent_pca_mas(
+    mas, runs, varis, keys
+) -> dict[int, dict[int, MolearnAnalysis]]:
+    pca_mas: dict[int, dict[int, MolearnAnalysis]] = {}
+
+    for run in runs:
+        pca_mas[run] = {}
+
+        for var in varis:
+            encoded: dict[str, Tensor] = {}
+            ma = mas[run][var]
+
+            for key in keys:
+                encoded[key] = ma.get_encoded(key=key)
+                encoded[key] = ma.get_encoded(key=key)
+
+            encoded_all = np.vstack([encoded[key] for key in keys])
+
+            pca = PCA(n_components=2)
+            pca.fit(encoded_all)
+
+            pca_mas[run][var] = make_hyperlatent_ma(
+                base_ma=mas[run][var],
+                encoded_by_keys=encoded,
+                mapping=pca.transform,
+                inverse_mapping=pca.inverse_transform,
+                keys=keys,
+            )
+
+            ma._decoded.clear()
+            ma._encoded.clear()
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    return pca_mas

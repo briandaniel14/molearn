@@ -1,8 +1,10 @@
+import gc
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 import torch
+from scipy.spatial.distance import pdist
 from scipy.stats import wasserstein_distance
 from torch import Tensor, optim
 
@@ -149,6 +151,91 @@ def get_wasserstein_distances(
             )
 
     return results
+
+
+def concordance_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    mx, my = x.mean(), y.mean()
+    sx, sy = x.var(), y.var()
+    sxy = np.mean((x - mx) * (y - my))
+    return float(2 * sxy / (sx + sy + (mx - my) ** 2))
+
+
+def get_all_stats(
+    mas,
+    variables,
+    runs,
+    keys,
+    random_state,
+    max_pairs=5000,
+) -> list:
+    rows = []
+
+    for var in variables:
+        for run in runs:
+            ma = mas[run][var]
+
+            for key in keys:
+                dataset = ma.get_dataset(key, scale=True)  # triggers cache
+                decoded = ma.get_decoded(key, scale=True)  # encode + decode once
+
+                # --- RMSD ---
+                errors = ma.get_error(key)  # uses cached decoded
+                median_rmsd = float(np.median(errors))
+                mean_rmsd = float(np.mean(errors))
+                std_rmsd = float(np.std(errors))
+
+                # --- Pairwise RMSD CCC ---
+                n_atoms = dataset.shape[1]
+                flat_ds = dataset.reshape(dataset.shape[0], -1).numpy()
+                flat_dc = decoded.reshape(decoded.shape[0], -1).numpy()
+                pw_ds = pdist(flat_ds, "euclidean") / np.sqrt(n_atoms)
+                pw_dc = pdist(flat_dc, "euclidean") / np.sqrt(n_atoms)
+                if len(pw_ds) > max_pairs:
+                    rng = np.random.default_rng(random_state)
+                    idx = rng.choice(len(pw_ds), size=max_pairs, replace=False)
+                    pw_ds_sub, pw_dc_sub = pw_ds[idx], pw_dc[idx]
+                else:
+                    pw_ds_sub, pw_dc_sub = pw_ds, pw_dc
+                ccc = concordance_correlation(pw_ds_sub, pw_dc_sub)
+
+                # --- Inversion ratio ---
+                inv = ma.get_inversions(key)["decoded_inversions"]
+                inversion_ratio = float(np.sum(inv == 0) / len(inv))
+
+                # --- Wasserstein distances (per bond type) ---
+                bl = ma.get_bondlengths(key)
+                dataset_bl = bl["dataset_bondlen"]
+                decoded_bl = bl["decoded_bondlen"]
+                wd = {
+                    bt: float(
+                        wasserstein_distance(
+                            dataset_bl[bt].flatten(), decoded_bl[bt].flatten()
+                        )
+                    )
+                    for bt in dataset_bl
+                }
+
+                rows.append(
+                    {
+                        "var": var,
+                        "run": run,
+                        "key": key,
+                        "median_rmsd": median_rmsd,
+                        "mean_rmsd": mean_rmsd,
+                        "std_rmsd": std_rmsd,
+                        "ccc": ccc,
+                        "inversion_ratio": inversion_ratio,
+                        **{f"wd_{bt}": v for bt, v in wd.items()},
+                    }
+                )
+
+            # free GPU/CPU memory before next model
+            ma._decoded.clear()
+            ma._encoded.clear()
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    return rows
 
 
 # ===============================================

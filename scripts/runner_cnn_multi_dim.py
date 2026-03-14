@@ -27,8 +27,8 @@ def main():
         "../data/full_murd_open.pdb",
     )
 
-    for n in range(6, 16):
-        latent_dims = list(range(2, 21))
+    for n in range(1, 6):
+        latent_dims = list(range(17, 21))
 
         for latent_dim in latent_dims:
             ##### Load Data #####

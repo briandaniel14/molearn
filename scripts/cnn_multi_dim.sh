@@ -3,7 +3,7 @@
 export MOLEARN_PATH=/home/${USER}/repos/molearn
 export SCRATCH_HOME=/disk/scratch/${USER}/molearn
 export OUTPUT_SCRATCH=${SCRATCH_HOME}/results/cnn_multi_dim
-export OUTPUT_HEAD=${MOLEARN_PATH}/results/${TIMESTAMP}
+export OUTPUT_HEAD=${MOLEARN_PATH}/results/
 
 set -e # fail fast
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Sequence
 
 import matplotlib as mpl
@@ -9,77 +10,47 @@ import torch
 from scipy.spatial.distance import pdist
 
 from molearn.analysis.analyser import MolearnAnalysis
+from molearn.analysis.path import get_path, get_point_index
+from molearn.analysis.plot import (
+    plot_bondlength_hist,
+    plot_inversion_hist,
+    plot_rmsd_hist,
+)
 
 
 def _latent_edge(values: np.ndarray) -> np.ndarray:
     return np.append(values, (2 * values[-1] - values[-2]))
 
 
-def plot_dope_mesh(  # noqa: PLR0913
-    MA: MolearnAnalysis,  # noqa: N803
+def plot_dope_mesh(  # noqa: PLR0913 PLR0915
+    ma: MolearnAnalysis,  # noqa: N803
     encoded_datasets: Sequence[tuple[np.ndarray, str, str]],
     mapping: Callable[[np.ndarray], np.ndarray],
     inverse_mapping: Callable[[np.ndarray], np.ndarray],
+    truncate_at: float,
     *,
+    show: bool = True,
     n_samples: int = 20,
     margin: float = 0.1,
     refine: bool = True,
     cmap: str = "viridis",
-    truncate_percentile: float = 80,
-    truncate_at: float | None = None,
     title: str | None = None,
     xlabel: str = "Dim 1",
     ylabel: str = "Dim 2",
     fname: str | None = None,
+    plot_crystals: bool = False,
+    # --- interpolation paths ---
+    plot_linear: bool = False,
+    plot_astar: bool = False,
+    start_encoded: np.ndarray | None = None,
+    end_encoded: np.ndarray | None = None,
+    n_interp: int = 50,
     **savefig_kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Plot a 2D DOPE-score mesh for an arbitrary latent -> 2D mapping.
+    """Plot a 2D DOPE-score mesh with optional linear / A* paths."""
+    need_paths = plot_linear or plot_astar
 
-    Parameters
-    ----------
-    MA : MolearnAnalysis
-        Analysis object with a network set and at least one dataset loaded
-        (used for decoding grid points and computing DOPE scores).
-    encoded_datasets : sequence of (encoded, label, colour)
-        Each entry is a tuple of:
-        - **encoded** – latent codes, shape ``(N, latent_dim)`` (numpy array).
-        - **label** – legend label for this dataset.
-        - **colour** – matplotlib colour string.
-    mapping : (N, latent_dim) -> (N, 2)
-        Forward mapping from latent space to the 2D visualisation space
-        (e.g. ``pca.transform``, ``reducer.transform``).
-    inverse_mapping : (N, 2) -> (N, latent_dim)
-        Inverse mapping from 2D back to the full latent space
-        (e.g. ``pca.inverse_transform``, ``reducer.inverse_transform``).
-    n_samples : int
-        Grid resolution per axis.
-    margin : float
-        Fractional padding around data extent (0.1 = 10 %).
-    refine : bool
-        Refine decoded structures before DOPE scoring.
-    cmap : str
-        Matplotlib colormap name.
-    truncate_percentile : float
-        Percentile of DOPE values used as the colour-scale upper bound
-        (ignored when *truncate_at* is set explicitly).
-    truncate_at : float or None
-        Explicit upper bound for the colour scale.
-    title : str or None
-        Plot title.  When ``None`` a generic title is used.
-    xlabel, ylabel : str
-        Axis labels.
-    fname : str or None
-        If given, save the figure to this path.
-    **savefig_kwargs
-        Extra keyword arguments forwarded to ``plt.savefig``.
-
-    Returns
-    -------
-    dope_surface : np.ndarray, shape (n_samples, n_samples)
-    dim1_vals : np.ndarray, shape (n_samples,)
-    dim2_vals : np.ndarray, shape (n_samples,)
-    """
-    # --- project all datasets into 2D to determine grid bounds -----------
+    # === project all datasets into 2D to determine grid bounds =========
     all_2d = np.vstack([mapping(enc) for enc, _, _ in encoded_datasets])
 
     d1_min, d1_max = all_2d[:, 0].min(), all_2d[:, 0].max()
@@ -97,25 +68,26 @@ def plot_dope_mesh(  # noqa: PLR0913
     d1_grid, d2_grid = np.meshgrid(d1_vals, d2_vals)
     grid_2d = np.column_stack([d1_grid.ravel(), d2_grid.ravel()])
 
-    # --- inverse-map back to latent space and decode ---------------------
+    # === inverse-map back to latent space and decode ===================
+
     latent_grid = inverse_mapping(grid_2d)
 
     print(f"Decoding {n_samples}x{n_samples} = {n_samples**2} grid points...")
     with torch.no_grad():
         latent_tensor = torch.tensor(latent_grid, dtype=torch.float32)
-        decoded = MA.network.decode(latent_tensor).cpu().numpy()
+        decoded = ma.network.decode(latent_tensor).cpu().numpy()
 
-    decoded_scaled = decoded * MA.stdval + MA.meanval
+    decoded_scaled = decoded * ma.stdval + ma.meanval
 
     print("Computing DOPE scores...")
-    dope_grid = MA.get_all_dope_score(decoded_scaled, refine=refine)
+    dope_grid = ma.get_all_dope_score(decoded_scaled, refine=refine)
     dope_surface = np.asarray(dope_grid).reshape(n_samples, n_samples)
+    # Shift dope_surface so minimum is 0 for pathfinding
+    dope_min = dope_surface.min()
+    dope_surface_shifted = dope_surface - dope_min
 
-    # --- colour-scale clipping -------------------------------------------
-    if truncate_at is None:
-        truncate_at = float(np.percentile(dope_surface, truncate_percentile))
+    # === plot ======================================
 
-    # --- plot ------------------------------------------------------------
     cmap_obj = mpl.cm.get_cmap(name=cmap)
     cmap_obj.set_over(cmap_obj(1.0))
 
@@ -134,7 +106,8 @@ def plot_dope_mesh(  # noqa: PLR0913
     ax.set_xlim(d1_vals.min(), d1_vals.max())
     ax.set_ylim(d2_vals.min(), d2_vals.max())
 
-    # --- overlay datasets ------------------------------------------------
+    # === overlay datasets =============================
+
     legend_handles = []
     for encoded, label, colour in encoded_datasets:
         coords_2d = mapping(encoded)
@@ -157,6 +130,178 @@ def plot_dope_mesh(  # noqa: PLR0913
                 label=label,
             )
         )
+
+    # === interpolation paths ===========================
+
+    def get_dope_at_point(pt):
+        x_idx = np.argmin(np.abs(d1_vals - pt[0]))
+        y_idx = np.argmin(np.abs(d2_vals - pt[1]))
+        return dope_surface[x_idx, y_idx]
+
+    paths = {}
+
+    if need_paths:
+        start_2d = mapping(start_encoded.reshape(1, -1)).squeeze()
+        end_2d = mapping(end_encoded.reshape(1, -1)).squeeze()
+        dope_start = get_dope_at_point(start_2d)
+        dope_end = get_dope_at_point(end_2d)
+
+        if plot_astar:
+            idx_start = get_point_index(start_2d, d1_vals, d2_vals)
+            idx_end = get_point_index(end_2d, d1_vals, d2_vals)
+
+            astar_coords, cost_so_far_shifted = get_path(
+                idx_start, idx_end, dope_surface_shifted, d1_vals, d2_vals, smooth=3
+            )
+
+            astar_coords = np.vstack([start_2d, astar_coords, end_2d])
+            # Plot A* path as markers at grid centers, and lines between them
+            ax.plot(
+                astar_coords[:, 0],
+                astar_coords[:, 1],
+                color="cyan",
+                linewidth=2,
+                linestyle="--",
+                label="A*",
+                alpha=0.9,
+                zorder=100,
+            )
+            # Overlay path nodes as dots at grid centers
+            ax.scatter(
+                astar_coords[:, 0],
+                astar_coords[:, 1],
+                color="cyan",
+                s=40,
+                marker="o",
+                edgecolor="black",
+                linewidth=0.8,
+                zorder=101,
+                label=None,
+            )
+            legend_handles.append(
+                mpl.lines.Line2D(
+                    [0], [0], color="cyan", linewidth=2, linestyle="--", label="A*"
+                )
+            )
+
+            astar_latent = inverse_mapping(astar_coords)
+
+            with torch.no_grad():
+                decoded_astar = (
+                    ma.network.decode(torch.tensor(astar_latent, dtype=torch.float32))
+                    .cpu()
+                    .numpy()
+                )
+
+            decoded_astar_scaled = decoded_astar * ma.stdval + ma.meanval
+            dope_scores_astar = np.concatenate(
+                [[dope_start], cost_so_far_shifted + dope_min, [dope_end]]
+            )
+
+            paths["astar"] = {
+                "latent": astar_latent,
+                "dope": np.asarray(dope_scores_astar),
+                "hyper_latent": astar_coords,
+                "decoded_scaled": decoded_astar_scaled,
+                "decoded": decoded_astar,
+            }
+
+        if plot_linear:
+            if plot_astar:
+                n_interp = len(astar_coords)
+
+            alphas = np.linspace(0, 1, n_interp)
+            linear_2d = np.array([(1 - a) * start_2d + a * end_2d for a in alphas])
+            ax.plot(
+                linear_2d[:, 0],
+                linear_2d[:, 1],
+                color="red",
+                linewidth=2,
+                label="Linear",
+                alpha=0.9,
+                zorder=100,
+            )
+            legend_handles.append(
+                mpl.lines.Line2D([0], [0], color="red", linewidth=2, label="Linear")
+            )
+
+            linear_2d = np.vstack([start_2d, linear_2d, end_2d])
+
+            linear_latent = inverse_mapping(linear_2d)
+
+            with torch.no_grad():
+                decoded_linear = (
+                    ma.network.decode(torch.tensor(linear_latent, dtype=torch.float32))
+                    .cpu()
+                    .numpy()
+                )
+
+            decoded_linear_scaled = decoded_linear * ma.stdval + ma.meanval
+            dope_scores_linear = ma.get_all_dope_score(
+                decoded_linear_scaled, refine=refine
+            )
+            np.concatenate([[dope_start], dope_scores_linear, [dope_end]])
+
+            paths["linear"] = {
+                "latent": linear_latent,
+                "dope": np.asarray(dope_scores_linear),
+                "hyper_latent": linear_2d,
+                "decoded_scaled": decoded_linear_scaled,
+                "decoded": decoded_linear,
+            }
+
+        # shared start/end markers
+        ax.plot(
+            *start_2d,
+            marker="o",
+            color="white",
+            markersize=9,
+            markeredgecolor="black",
+            markeredgewidth=1.5,
+            zorder=101,
+        )
+        ax.plot(
+            *end_2d,
+            marker="s",
+            color="white",
+            markersize=9,
+            markeredgecolor="black",
+            markeredgewidth=1.5,
+            zorder=101,
+        )
+
+    # === plotting crystal transitions ===================================
+
+    if plot_crystals:
+        crystal_datasets = [
+            (ma.get_encoded("5A5E").numpy(), "5A5E", "gold"),
+            (ma.get_encoded("5A5F").numpy(), "5A5F", "gold"),
+        ]
+
+        for encoded, label, colour in crystal_datasets:
+            coords_2d = mapping(encoded)
+            ax.scatter(
+                coords_2d[:, 0],
+                coords_2d[:, 1],
+                c=colour,
+                s=120,
+                marker="*",
+                edgecolors="black",
+                linewidths=0.8,
+                zorder=102,
+                label=label,
+            )
+            legend_handles.append(
+                mpl.lines.Line2D(
+                    [0],
+                    [0],
+                    color=colour,
+                    linestyle="",
+                    marker="*",
+                    markersize=12,
+                    label=label,
+                )
+            )
 
     if legend_handles:
         ax.legend(handles=legend_handles, loc="upper right")
@@ -181,9 +326,24 @@ def plot_dope_mesh(  # noqa: PLR0913
 
     if fname is not None:
         plt.savefig(fname, **savefig_kwargs)
-    plt.show()
+    if show:
+        plt.show()
 
-    return dope_surface, d1_vals, d2_vals
+    return dope_surface, d1_vals, d2_vals, fig, ax, paths
+
+
+def plot_dope_interp_scores(scores: np.ndarray, title: str) -> None:
+    """
+    Plot a simple line graph showing how the DOPE scores change along a path.
+    """
+    plt.figure(figsize=(8, 4))
+    plt.plot(scores, marker="o", linestyle="-", color="blue")
+    plt.xlabel("Path Index")
+    plt.ylabel("DOPE Score")
+    plt.title(title)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_path_on_mesh(
@@ -272,6 +432,7 @@ def plot_pairwise_rmsd(
     ma: MolearnAnalysis,
     key: str,
     show_plot: bool,
+    latent_dim: str,
     *,
     max_pairs: int = 5000,
     seed: int = 42,
@@ -324,8 +485,19 @@ def plot_pairwise_rmsd(
     ax.set_aspect("equal")
     ax.text(0.05, 0.92, f"CCC={ccc:.3f}", transform=ax.transAxes, fontsize=12)
 
-    if title:
-        ax.set_title(title)
+    if key == "test_trans":
+        dataset_title = "Test"
+
+    if key == "train_both":
+        dataset_title = "Train"
+
+    if key == "astar":
+        dataset_title = "A*"
+
+    if key == "linear":
+        dataset_title = "Linear"
+
+    ax.set_title(f"Pairwise RMSD {dataset_title}: Latent dim: {latent_dim}")
 
     plt.tight_layout()
     if fname:
@@ -343,3 +515,66 @@ def _concordance_correlation(x: np.ndarray, y: np.ndarray) -> float:
     sx, sy = x.var(), y.var()
     sxy = np.mean((x - mx) * (y - my))
     return float(2 * sxy / (sx + sy + (mx - my) ** 2))
+
+
+# ===============================================
+# all base plots
+# ===============================================
+
+
+def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
+    rmsd_plot_data = [
+        ("train_both", "test_trans", "Train vs Transition", "train", "test"),
+    ]
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    plot_rmsd_hist(
+        ma,
+        plot_data=rmsd_plot_data,
+        dpi=150,
+        var=latent_dim,
+        fname=f"{save_dir}rmsd_r{run}_v{latent_dim}",
+    )
+
+    plot_bondlength_hist(
+        ma,
+        plot_data=plot_data,
+        bins=300,
+        dpi=150,
+        bond_types=["N-CA"],
+        latent_dim=latent_dim,
+        fname=f"{save_dir}/wd_r{run}_v{latent_dim}",
+    )
+
+    plot_inversion_hist(
+        ma,
+        plot_data=plot_data,
+        latent_dim=latent_dim,
+        show_plot=True,
+        fname=f"{save_dir}/inversion_r{run}_v{latent_dim}",
+    )
+
+    for key in ["train_both", "test_trans"]:
+        plot_pairwise_rmsd(
+            ma,
+            key=key,
+            latent_dim=latent_dim,
+            show_plot=True,
+            title=f"Pairwise RMSD — Latent Dim {latent_dim}",
+            max_pairs=5000,
+            fname=f"{save_dir}/ccc_{key}_r{run}_v{latent_dim}",
+        )
+
+    # plot_dope_mesh(
+    #     ma,
+    #     encoded_datasets=encoded_datasets,
+    #     mapping=pca.transform,
+    #     inverse_mapping=pca.inverse_transform,
+    #     n_samples=N_SAMPLES,
+    #     refine=REFINE,
+    #     truncate_at=TRUNCATE_AT,
+    #     title=f"PCA DOPE Surface - Latent Dim {var}",
+    #     xlabel=f"PC1 ({var_pc1:.1f}%)",
+    #     ylabel=f"PC2 ({var_pc2:.1f}%)",
+    # )

@@ -88,9 +88,10 @@ def _plot_metric_histograms(
     entries: Sequence[Dict[str, object]],
     metric_names: Sequence[str],
     bins: int,
-    wkdir: Optional[Path],
+    fname: Optional[Path],
     filename_prefix: str,
     xlabel: str,
+    latent_dim: str,
     xlim: Optional[Tuple[float, float]] | Dict[str, Tuple[float, float]] = None,
     density: bool = True,
     legend_suffix: str = "",
@@ -133,7 +134,7 @@ def _plot_metric_histograms(
                 density=density,
                 label=f"{label} Decoded{legend_suffix}",
             )
-            ax.set_title(f"{label} - {metric_name}")
+            ax.set_title(f"{label} - {metric_name} - Latent dim: {latent_dim}")
             ax.set_ylabel("Density" if density else "Count")
             if isinstance(xlim, dict):
                 limits = xlim.get(metric_name)
@@ -144,10 +145,14 @@ def _plot_metric_histograms(
             ax.set_xlabel(xlabel)
             ax.legend()
             ax.tick_params(labelbottom=True, labelleft=False)
+
         plt.tight_layout()
-        if wkdir is not None:
-            plt.savefig(wkdir / f"{filename_prefix}_{metric_name}.pdf", **save_kwargs)
+
+        if fname is not None:
+            plt.savefig(fname)
+
         plt.show()
+
     return figures
 
 
@@ -175,7 +180,7 @@ def _overlay_latent_points(ax, MA, plot_data):
     return legend_handles
 
 
-def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, bond_types=None, **kwargs):
+def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=None, bond_types=None, **kwargs):
     """
     Plot bond-length distributions for original and decoded structures.
     
@@ -195,7 +200,6 @@ def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, bond_t
     if plot_data is None:
         raise ValueError("plot_data must be provided.")
 
-    wkdir = _ensure_path(wkdir)
     entries, metric_names = _collect_metric_entries(
         MA,
         plot_data,
@@ -203,13 +207,15 @@ def plot_bondlength_hist(MA, plot_data=None, bins: int = 100, wkdir=None, bond_t
         dataset_key="dataset_bondlen",
         decoded_key="decoded_bondlen",
     )
+
     if bond_types is not None:
         metric_names = [m for m in metric_names if m in bond_types]
     _plot_metric_histograms(
         entries,
         metric_names,
+        latent_dim=latent_dim,
         bins=bins,
-        wkdir=wkdir,
+        fname=fname,
         filename_prefix="BL",
         xlabel="Bond length (Å)",
         xlim=(0.0, 2.5),
@@ -292,7 +298,7 @@ def plot_angle_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwargs):
     )
 
 
-def plot_inversion_hist(MA, show_plot: bool, plot_data, fname=None,  **kwargs, ):
+def plot_inversion_hist(MA, latent_dim, show_plot: bool, plot_data, fname=None,  **kwargs, ):
     """
     Plot distributions of number of D-amino acids in each structure in datasets as bar plots
 
@@ -345,7 +351,7 @@ def plot_inversion_hist(MA, show_plot: bool, plot_data, fname=None,  **kwargs, )
         ax.bar(decoded_values, decoded_counts, color=decoded_color, alpha=0.7, edgecolor='black', label=f'{label} decoded')
         
         ax.set_ylabel("Count")
-        ax.set_title(label, fontsize=10)
+        ax.set_title(f"{label}, Latent dim: {latent_dim}", fontsize=10)
         ax.legend()
     
     axes[-1].set_xlabel("D-amino acids count")
@@ -487,10 +493,10 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, var=None, **kwargs):
     for key1, key2, label, kw1, kw2 in plot_data:
         if kw1 == 'train': c1 = train_colour
         elif kw1 == 'test': c1 = test_colour
-        else: raise ValueError(f"Invalid keyword {kw1}.")
+        else: c1 = train_colour
         if kw2 == 'train': c2 = train_colour
         elif kw2 == 'test': c2 = test_colour
-        else: raise ValueError(f"Invalid keyword {kw2}.")
+        else: c2 = test_colour
         error1 = MA.get_error(key1)
         error2 = MA.get_error(key2)
         data_pairs.extend([error1, error2])
@@ -521,6 +527,27 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, var=None, **kwargs):
         plt.savefig(fname, **kwargs)
     plt.show()
 
+    # Collect all train and test errors
+    train_errors = []
+    test_errors = []
+    for i, (key1, key2, label, kw1, kw2) in enumerate(plot_data):
+        error1 = data_pairs[2*i]
+        error2 = data_pairs[2*i+1]
+        if kw1 == 'train':
+            train_errors.extend(error1)
+        elif kw1 == 'test':
+            test_errors.extend(error1)
+        if kw2 == 'train':
+            train_errors.extend(error2)
+        elif kw2 == 'test':
+            test_errors.extend(error2)
+
+    medians = {
+        "train": float(np.median(train_errors)) if train_errors else None,
+        "test": float(np.median(test_errors)) if test_errors else None,
+    }
+
+    return medians
 
 
 def plot_network_rmsd_surface(MA, plot_data=None, cmap='gist_heat_r', fname=None, **kwargs):
@@ -617,7 +644,7 @@ def plot_dope_surface(MA, refine=True, truncate_at=None, plot_data=None, cmap='g
 
     handles = _overlay_latent_points(ax, MA, plot_data or [])
     if handles:
-        ax.legend(handles=handles, loc='upper right')
+        ax.legend(handles=handles, loc='upper left')
 
     ax.set_xlim(MA.xvals.min(), MA.xvals.max())
     ax.set_ylim(MA.yvals.min(), MA.yvals.max())

@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import umap
 from scipy.spatial.distance import pdist
 from scipy.stats import wasserstein_distance
 from sklearn.decomposition import PCA
@@ -71,6 +72,23 @@ def raw_pairwise_stress_loss(ma: MolearnAnalysis):
     return loss_fn
 
 
+def composite_loss(ma, weights):
+    latent_rmsd = latent_rmsd_loss
+    latent_stress = latent_pairwise_stress_loss
+    raw_rmsd = raw_rmsd_loss(ma)
+    raw_stress = raw_pairwise_stress_loss(ma)
+
+    def loss_fn(enc_batch, enc_recon, raw_batch):
+        return (
+            weights[0] * latent_rmsd(enc_batch, enc_recon, raw_batch)
+            + weights[1] * latent_stress(enc_batch, enc_recon, raw_batch)
+            + weights[2] * raw_rmsd(enc_batch, enc_recon, raw_batch)
+            + weights[3] * raw_stress(enc_batch, enc_recon, raw_batch)
+        )
+
+    return loss_fn
+
+
 # ============================================================================
 # Train functions
 # ============================================================================
@@ -80,7 +98,7 @@ def raw_pairwise_stress_loss(ma: MolearnAnalysis):
 class TrainConfig:
     model: LatentAutoencoder
     ma: MolearnAnalysis
-    key: str
+    keys: list[str]
     loss_func: Callable[[Tensor, Tensor, Tensor], Tensor]
     lr: float = 1e-3
     batch_size: int = 64
@@ -89,9 +107,10 @@ class TrainConfig:
 
 
 def train_loop(c: TrainConfig) -> LatentAutoencoder:
-    encoded = c.ma.get_encoded(key=c.key)
-    raw = c.ma.get_dataset(key=c.key)
-    dataset = torch.utils.data.TensorDataset(encoded, raw)
+    encoded_all = torch.vstack([c.ma.get_encoded(key=key) for key in c.keys])
+    raw_all = torch.vstack([c.ma.get_dataset(key=key) for key in c.keys])
+
+    dataset = torch.utils.data.TensorDataset(encoded_all, raw_all)
 
     loader = torch.utils.data.DataLoader(dataset, batch_size=c.batch_size, shuffle=True)
 
@@ -254,7 +273,7 @@ def make_hyperlatent_ma(
     encoded_by_keys: dict[str, Tensor],
     mapping: Callable[[np.ndarray], np.ndarray],
     inverse_mapping: Callable[[np.ndarray], np.ndarray],
-    keys: list[str] = ("train_both", "test_trans"),
+    keys: list[str] = ("train_open", "train_closed", "train_both", "test_trans"),
 ) -> MolearnAnalysis:
     hyper_ma = MolearnAnalysis()
     hyper_ma.batch_size = base_ma.batch_size
@@ -278,20 +297,23 @@ def make_hyperlatent_ma(
     return hyper_ma
 
 
-def make_all_hyperlatent_pca_mas(
+def make_hyperlatent_pca_mas(
     mas, runs, varis, keys
 ) -> dict[int, dict[int, MolearnAnalysis]]:
     pca_mas: dict[int, dict[int, MolearnAnalysis]] = {}
+    mappings: dict[int, dict[int, Callable]] = {}
+    inverse_mappings: dict[int, dict[int, Callable]] = {}
 
     for run in runs:
         pca_mas[run] = {}
+        mappings[run] = {}
+        inverse_mappings[run] = {}
 
         for var in varis:
             encoded: dict[str, Tensor] = {}
             ma = mas[run][var]
 
             for key in keys:
-                encoded[key] = ma.get_encoded(key=key)
                 encoded[key] = ma.get_encoded(key=key)
 
             encoded_all = np.vstack([encoded[key] for key in keys])
@@ -307,9 +329,128 @@ def make_all_hyperlatent_pca_mas(
                 keys=keys,
             )
 
+            mappings[run][var] = pca.transform
+            inverse_mappings[run][var] = pca.inverse_transform
+
             ma._decoded.clear()
             ma._encoded.clear()
             gc.collect()
             torch.cuda.empty_cache()
 
-    return pca_mas
+    return pca_mas, mappings, inverse_mappings
+
+
+def make_hyperlatent_umap_mas(
+    mas,
+    runs,
+    varis,
+    keys,
+    n_components=2,
+    n_neighbors=12,
+    min_dist=0.1,
+    random_state=42,
+) -> dict[int, dict[int, MolearnAnalysis]]:
+    umap_mas: dict[int, dict[int, MolearnAnalysis]] = {}
+    mappings: dict[int, dict[int, Callable]] = {}
+    inverse_mappings: dict[int, dict[int, Callable]] = {}
+
+    for run in runs:
+        umap_mas[run] = {}
+        mappings[run] = {}
+        inverse_mappings[run] = {}
+
+        for var in varis:
+            encoded: dict[str, Tensor] = {}
+            ma = mas[run][var]
+
+            for key in keys:
+                encoded[key] = ma.get_encoded(key=key)
+
+            encoded_all = np.vstack([encoded[key] for key in keys])
+
+            reducer = umap.UMAP(
+                n_components=2, random_state=42, n_neighbors=12, min_dist=0.1
+            )
+            reducer.fit(encoded_all)
+
+            umap_mas[run][var] = make_hyperlatent_ma(
+                base_ma=mas[run][var],
+                encoded_by_keys=encoded,
+                mapping=reducer.transform,
+                inverse_mapping=reducer.inverse_transform,
+                keys=keys,
+            )
+
+            mappings[run][var] = reducer.transform
+            inverse_mappings[run][var] = reducer.inverse_transform
+
+            ma._decoded.clear()
+            ma._encoded.clear()
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    return umap_mas, mappings, inverse_mappings
+
+
+def make_hyperlatent_mlp_mas(
+    mas: dict[int, dict[int, MolearnAnalysis]],
+    runs: list[int],
+    varis: list[int],
+    keys: list[str],
+    weights: list[int],
+    epochs: int,
+) -> dict[int, dict[int, MolearnAnalysis]]:
+    mlp_mas: dict[int, dict[int, MolearnAnalysis]] = {}
+    mappings: dict[int, dict[int, Callable]] = {}
+    inverse_mappings: dict[int, dict[int, Callable]] = {}
+
+    for run in runs:
+        mlp_mas[run] = {}
+        mappings[run] = {}
+        inverse_mappings[run] = {}
+
+        for var in varis:
+            encoded: dict[str, Tensor] = {}
+            ma = mas[run][var]
+
+            for key in keys:
+                encoded[key] = ma.get_encoded(key=key)
+
+            loss_func = composite_loss(mas[run][var], weights)
+
+            train_config = TrainConfig(
+                model=LatentAutoencoder(input_dim=var),
+                ma=mas[run][var],
+                keys=["train_open", "train_closed"],
+                loss_func=loss_func,
+                epochs=epochs,
+            )
+
+            model = train_loop(train_config)
+
+            def ae_encode(x: np.ndarray) -> np.ndarray:
+                with torch.no_grad():
+                    return model.encode(torch.tensor(x, dtype=torch.float32)).numpy()  # noqa: B023
+
+            mappings[run][var] = ae_encode
+
+            def ae_decode(x: np.ndarray) -> np.ndarray:
+                with torch.no_grad():
+                    return model.decode(torch.tensor(x, dtype=torch.float32)).numpy()  # noqa: B023
+
+            inverse_mappings[run][var] = ae_decode
+
+            mlp_mas[run][var] = make_hyperlatent_ma(
+                base_ma=mas[run][var],
+                encoded_by_keys=encoded,
+                mapping=ae_encode,
+                inverse_mapping=ae_decode,
+                keys=keys,
+            )
+
+            ma._decoded.clear()
+            ma._encoded.clear()
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    return mlp_mas, mappings, inverse_mappings

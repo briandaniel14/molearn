@@ -291,3 +291,9 @@ examples/foldingnet_checkpoints
 archive/
 .ipynb_checkpoints/
 build/
+
+results/
+figures/
+results.zip
+claude/
+CLAUDE.md

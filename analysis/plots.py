@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import os
 from collections.abc import Callable, Sequence
 
@@ -565,6 +566,9 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
             max_pairs=5000,
             fname=f"{save_dir}/ccc_{key}_r{run}_v{latent_dim}",
         )
+
+    gc.collect()
+    torch.cuda.empty_cache()
 
     # plot_dope_mesh(
     #     ma,

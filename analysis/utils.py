@@ -1,3 +1,4 @@
+import copy
 import gc
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -104,35 +105,76 @@ class TrainConfig:
     batch_size: int = 64
     epochs: int = 200
     verbose: bool = False
+    val_split: float = 0.1
 
 
 def train_loop(c: TrainConfig) -> LatentAutoencoder:
-    encoded_all = torch.vstack([c.ma.get_encoded(key=key) for key in c.keys])
-    raw_all = torch.vstack([c.ma.get_dataset(key=key) for key in c.keys])
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    c.model = c.model.to(device)
+
+    encoded_all = torch.vstack([c.ma.get_encoded(key=key) for key in c.keys]).to(device)
+    raw_all = torch.vstack([c.ma.get_dataset(key=key) for key in c.keys]).to(device)
 
     dataset = torch.utils.data.TensorDataset(encoded_all, raw_all)
 
-    loader = torch.utils.data.DataLoader(dataset, batch_size=c.batch_size, shuffle=True)
+    n_total = len(dataset)
+    n_val = int(n_total * c.val_split)
+    n_train = n_total - n_val
+    train_dataset, val_dataset = torch.utils.data.random_split(
+        dataset, [n_train, n_val]
+    )
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=c.batch_size, shuffle=True
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset, batch_size=c.batch_size, shuffle=False
+    )
 
     optimizer = optim.Adam(c.model.parameters(), lr=c.lr)
     c.model.train()
 
+    best_val_loss = float("inf")
+    best_state_dict = copy.deepcopy(c.model.state_dict())
+
     for epoch in range(c.epochs):
         epoch_loss: float = 0.0
-        for enc_batch, raw_batch in loader:
+
+        c.model.train()
+
+        for enc_batch, raw_batch in train_loader:
+            enc_batch = enc_batch.to(device)  # noqa: PLW2901
+            raw_batch = raw_batch.to(device)  # noqa: PLW2901
             enc_recon, z = c.model(enc_batch)
+
             loss = c.loss_func(enc_batch, enc_recon, raw_batch)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
 
-        if (epoch + 1) % 10 == 0 and c.verbose:
-            print(
-                f"Epoch {epoch + 1}/{c.epochs} — Loss: {epoch_loss / len(loader):.6f}"
-            )
+        val_loss = 0.0
+        c.model.eval()
 
-    return c.model
+        with torch.no_grad():
+            for enc_batch, raw_batch in val_loader:
+                enc_batch = enc_batch.to(device)  # noqa: PLW2901
+                raw_batch = raw_batch.to(device)  # noqa: PLW2901
+                enc_recon, z = c.model(enc_batch)
+                loss = c.loss_func(enc_batch, enc_recon, raw_batch)
+                val_loss += loss.item()
+
+        val_loss /= len(val_loader)
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_state_dict = copy.deepcopy(c.model.state_dict())
+
+        if (epoch + 1) % 10 == 0 and c.verbose:
+            print(f"Epoch {epoch + 1}/{c.epochs} — Best val loss: {best_val_loss:.6f}")
+
+        c.model.load_state_dict(best_state_dict)
+
+    return c.model, best_val_loss
 
 
 # ============================================================================
@@ -397,17 +439,18 @@ def make_hyperlatent_mlp_mas(
     runs: list[int],
     varis: list[int],
     keys: list[str],
-    weights: list[int],
-    epochs: int,
+    train_config: TrainConfig,
 ) -> dict[int, dict[int, MolearnAnalysis]]:
     mlp_mas: dict[int, dict[int, MolearnAnalysis]] = {}
     mappings: dict[int, dict[int, Callable]] = {}
     inverse_mappings: dict[int, dict[int, Callable]] = {}
+    val_loss: dict[int, dict[int, Callable]] = {}
 
     for run in runs:
         mlp_mas[run] = {}
         mappings[run] = {}
         inverse_mappings[run] = {}
+        val_loss[run] = {}
 
         for var in varis:
             encoded: dict[str, Tensor] = {}
@@ -416,17 +459,7 @@ def make_hyperlatent_mlp_mas(
             for key in keys:
                 encoded[key] = ma.get_encoded(key=key)
 
-            loss_func = composite_loss(mas[run][var], weights)
-
-            train_config = TrainConfig(
-                model=LatentAutoencoder(input_dim=var),
-                ma=mas[run][var],
-                keys=["train_open", "train_closed"],
-                loss_func=loss_func,
-                epochs=epochs,
-            )
-
-            model = train_loop(train_config)
+            model, val_loss[run][var] = train_loop(train_config)
 
             def ae_encode(x: np.ndarray) -> np.ndarray:
                 with torch.no_grad():
@@ -453,4 +486,4 @@ def make_hyperlatent_mlp_mas(
             gc.collect()
             torch.cuda.empty_cache()
 
-    return mlp_mas, mappings, inverse_mappings
+    return mlp_mas, mappings, inverse_mappings, val_loss

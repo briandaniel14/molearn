@@ -5,16 +5,14 @@ import pandas as pd
 
 
 def round_sig(x, sig=3):
-    """Round a number to N significant digits."""
+    """Round a number to N decimal places."""
     if pd.isnull(x):
         return x
     try:
         x = float(x)
     except Exception:
         return x
-    if x == 0:
-        return 0.0
-    return float(f"{x:.{sig}g}")
+    return round(x, sig)
 
 
 def round_csv(input_path, output_path, sig=3):

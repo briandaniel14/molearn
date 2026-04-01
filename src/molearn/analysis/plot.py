@@ -181,7 +181,7 @@ def _overlay_latent_points(ax, MA, plot_data):
     return legend_handles
 
 
-def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=None, bond_types=None, show, **kwargs):
+def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=None, bond_types=None, show=True, **kwargs):
     """
     Plot bond-length distributions for original and decoded structures.
     
@@ -470,7 +470,7 @@ def plot_dope_hist(MA, plot_data=None, fname=None, refine=True, **kwargs):
 
 
 
-def plot_rmsd_hist(MA, plot_data=None, fname=None, var=None, **kwargs):
+def plot_rmsd_hist(MA, plot_data=None, fname=None, var=None, show=True, **kwargs):
     """
     Plot distributions of RMSD scores of the chosen datasets.
 

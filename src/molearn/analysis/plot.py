@@ -96,6 +96,7 @@ def _plot_metric_histograms(
     density: bool = True,
     legend_suffix: str = "",
     save_kwargs: Optional[Dict] = None,
+    show = True,
 ):
     save_kwargs = save_kwargs or {}
     figures = []
@@ -151,7 +152,7 @@ def _plot_metric_histograms(
         if fname is not None:
             plt.savefig(fname)
 
-        plt.show()
+        if show: plt.show()
 
     return figures
 
@@ -180,7 +181,7 @@ def _overlay_latent_points(ax, MA, plot_data):
     return legend_handles
 
 
-def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=None, bond_types=None, **kwargs):
+def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=None, bond_types=None, show, **kwargs):
     """
     Plot bond-length distributions for original and decoded structures.
     
@@ -220,6 +221,7 @@ def plot_bondlength_hist(MA, latent_dim, plot_data=None, bins: int = 100, fname=
         xlabel="Bond length (Å)",
         xlim=(0.0, 2.5),
         save_kwargs=kwargs,
+        show=show,
     )
 
 def plot_dihedral_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwargs):
@@ -298,7 +300,7 @@ def plot_angle_hist(MA, plot_data=None, bins: int = 100, wkdir=None, **kwargs):
     )
 
 
-def plot_inversion_hist(MA, latent_dim, show_plot: bool, plot_data, fname=None,  **kwargs, ):
+def plot_inversion_hist(MA, latent_dim, show_plot: bool, plot_data, fname=None, show=True,  **kwargs, ):
     """
     Plot distributions of number of D-amino acids in each structure in datasets as bar plots
 
@@ -360,8 +362,8 @@ def plot_inversion_hist(MA, latent_dim, show_plot: bool, plot_data, fname=None, 
     
     if fname is not None:
         plt.savefig(fname, **kwargs)
-    if show_plot:
-        plt.show()
+
+    if show:plt.show()
 
     return ratios
     
@@ -523,9 +525,8 @@ def plot_rmsd_hist(MA, plot_data=None, fname=None, var=None, **kwargs):
     ax.grid(True, linestyle='--', alpha=0.6)
     
     # Save the plot if fname is provided
-    if fname:
-        plt.savefig(fname, **kwargs)
-    plt.show()
+    if fname: plt.savefig(fname, **kwargs)
+    if show: plt.show()
 
     # Collect all train and test errors
     train_errors = []

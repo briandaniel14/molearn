@@ -333,7 +333,7 @@ def plot_dope_mesh(  # noqa: PLR0913 PLR0915
     return dope_surface, d1_vals, d2_vals, fig, ax, paths
 
 
-def plot_dope_interp_scores(scores: np.ndarray, title: str) -> None:
+def plot_dope_interp_scores(scores: np.ndarray, title: str, outdir) -> None:
     """
     Plot a simple line graph showing how the DOPE scores change along a path.
     """
@@ -345,6 +345,7 @@ def plot_dope_interp_scores(scores: np.ndarray, title: str) -> None:
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
+    plt.savefig(f"{outdir}/{title}.png")
 
 
 def plot_path_on_mesh(
@@ -439,6 +440,7 @@ def plot_pairwise_rmsd(
     seed: int = 42,
     title: str | None = None,
     fname: str | None = None,
+    show=True,
     **savefig_kwargs,
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """Scatter plot of dataset vs decoded pairwise RMSD with CCC.
@@ -504,7 +506,7 @@ def plot_pairwise_rmsd(
     if fname:
         plt.savefig(fname, **savefig_kwargs)
 
-    if show_plot:
+    if show:
         plt.show()
 
     return ccc, pw_ds, pw_dc
@@ -523,7 +525,7 @@ def _concordance_correlation(x: np.ndarray, y: np.ndarray) -> float:
 # ===============================================
 
 
-def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
+def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir, show) -> None:
     rmsd_plot_data = [
         ("train_both", "test_trans", "Train vs Transition", "train", "test"),
     ]
@@ -535,7 +537,8 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
         plot_data=rmsd_plot_data,
         dpi=150,
         var=latent_dim,
-        fname=f"{save_dir}rmsd_r{run}_v{latent_dim}",
+        fname=f"{save_dir}/rmsd_r{run}_v{latent_dim}",
+        show=show,
     )
 
     plot_bondlength_hist(
@@ -546,6 +549,7 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
         bond_types=["N-CA"],
         latent_dim=latent_dim,
         fname=f"{save_dir}/wd_r{run}_v{latent_dim}",
+        show=show,
     )
 
     plot_inversion_hist(
@@ -554,6 +558,7 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
         latent_dim=latent_dim,
         show_plot=True,
         fname=f"{save_dir}/inversion_r{run}_v{latent_dim}",
+        show=show,
     )
 
     for key in ["train_both", "test_trans"]:
@@ -565,6 +570,7 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
             title=f"Pairwise RMSD — Latent Dim {latent_dim}",
             max_pairs=5000,
             fname=f"{save_dir}/ccc_{key}_r{run}_v{latent_dim}",
+            show=show,
         )
 
     gc.collect()

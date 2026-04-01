@@ -1,3 +1,0 @@
-- For score cards - at run or var level?
-- Are the current evaluation methods sufficient?
-- 

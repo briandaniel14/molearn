@@ -569,16 +569,3 @@ def all_base_plots(ma, keys, plot_data, latent_dim, run, save_dir) -> None:
 
     gc.collect()
     torch.cuda.empty_cache()
-
-    # plot_dope_mesh(
-    #     ma,
-    #     encoded_datasets=encoded_datasets,
-    #     mapping=pca.transform,
-    #     inverse_mapping=pca.inverse_transform,
-    #     n_samples=N_SAMPLES,
-    #     refine=REFINE,
-    #     truncate_at=TRUNCATE_AT,
-    #     title=f"PCA DOPE Surface - Latent Dim {var}",
-    #     xlabel=f"PC1 ({var_pc1:.1f}%)",
-    #     ylabel=f"PC2 ({var_pc2:.1f}%)",
-    # )

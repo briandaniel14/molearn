@@ -16,6 +16,8 @@ from torch import Tensor, optim
 from molearn.analysis.analyser import MolearnAnalysis
 from molearn.models.latent_autoencoder import LatentAutoencoder
 
+RANDOM_STATE = 42
+
 
 def rmsd(x: Tensor, x_recon: Tensor) -> Tensor:
     return torch.sqrt(torch.mean((x - x_recon) ** 2))
@@ -390,7 +392,7 @@ def make_hyperlatent_umap_mas(
     n_components=2,
     n_neighbors=12,
     min_dist=0.1,
-    random_state=42,
+    random_state=RANDOM_STATE,
 ) -> dict[int, dict[int, MolearnAnalysis]]:
     umap_mas: dict[int, dict[int, MolearnAnalysis]] = {}
     mappings: dict[int, dict[int, Callable]] = {}
@@ -411,7 +413,7 @@ def make_hyperlatent_umap_mas(
             encoded_all = np.vstack([encoded[key] for key in keys])
 
             reducer = umap.UMAP(
-                n_components=2, random_state=42, n_neighbors=12, min_dist=0.1
+                n_components=2, random_state=RANDOM_STATE, n_neighbors=12, min_dist=0.1
             )
             reducer.fit(encoded_all)
 

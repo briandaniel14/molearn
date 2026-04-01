@@ -7,10 +7,8 @@ from openmm import LangevinIntegrator
 from openmm.app import ForceField, Modeller, Simulation
 from openmm.unit import femtoseconds, kelvin, picoseconds
 
-from molearn.data.pdb_data import PDBData
-
 sys.path.insert(0, os.path.join(os.path.abspath(os.pardir), "src"))
-
+from molearn.data.pdb_data import PDBData
 from molearn.loss_functions import openmm_energy
 from molearn.trainers.openmm_physics_trainer import SOFT_NB_XML
 from molearn.utils import as_numpy, random_string

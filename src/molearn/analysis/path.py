@@ -188,7 +188,8 @@ def get_path(idx_start, idx_end, landscape, xvals, yvals, smooth=3):
 
         idx_flat = mypath[idx_flat]
         crd = np.unravel_index(idx_flat, landscape.shape)
-        coords.append([xvals[crd[0]], yvals[crd[1]]])
+        coords.append([xvals[crd[1]], yvals[crd[0]]])
+        #coords.append([xvals[crd[0]], yvals[crd[1]]])
         score.append(landscape[crd[0], crd[1]])
         
         cnt += 1
@@ -219,7 +220,7 @@ def get_point_index(crd, xvals, yvals):
 
     my_x = np.argmin(np.abs(xvals - crd[0]))
     my_y = np.argmin(np.abs(yvals - crd[1]))
-    return np.array([my_x, my_y])
+    return np.array([my_y, my_x])
 
 
 def get_path_aggregate(crd, landscape, xvals, yvals, input_is_index=False):

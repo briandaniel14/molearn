@@ -1,5 +1,7 @@
 import copy
 import gc
+import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +14,8 @@ from scipy.spatial.distance import pdist
 from scipy.stats import wasserstein_distance
 from sklearn.decomposition import PCA
 from torch import Tensor, optim
+
+sys.path.insert(0, os.path.join(os.path.abspath(os.pardir), "src"))
 
 from molearn.analysis.analyser import MolearnAnalysis
 from molearn.models.latent_autoencoder import LatentAutoencoder
@@ -343,15 +347,22 @@ def make_hyperlatent_ma(
 
 def make_hyperlatent_pca_mas(
     mas, runs, varis, keys
-) -> dict[int, dict[int, MolearnAnalysis]]:
+) -> tuple[
+    dict[int, dict[int, MolearnAnalysis]],
+    dict[int, dict[int, Callable]],
+    dict[int, dict[int, Callable]],
+    dict[int, dict[int, list[float]]],
+]:
     pca_mas: dict[int, dict[int, MolearnAnalysis]] = {}
     mappings: dict[int, dict[int, Callable]] = {}
     inverse_mappings: dict[int, dict[int, Callable]] = {}
+    pca_variances: dict[int, dict[int, list[float]]] = {}
 
     for run in runs:
         pca_mas[run] = {}
         mappings[run] = {}
         inverse_mappings[run] = {}
+        pca_variances[run] = {}
 
         for var in varis:
             encoded: dict[str, Tensor] = {}
@@ -364,6 +375,13 @@ def make_hyperlatent_pca_mas(
 
             pca = PCA(n_components=2)
             pca.fit(encoded_all)
+
+            explained = pca.explained_variance_ratio_ * 100
+            pca_variances[run][var] = [
+                float(explained[0]),
+                float(explained[1]),
+                float(np.sum(explained)),
+            ]
 
             pca_mas[run][var] = make_hyperlatent_ma(
                 base_ma=mas[run][var],
@@ -381,7 +399,7 @@ def make_hyperlatent_pca_mas(
             gc.collect()
             torch.cuda.empty_cache()
 
-    return pca_mas, mappings, inverse_mappings
+    return pca_mas, mappings, inverse_mappings, pca_variances
 
 
 def make_hyperlatent_umap_mas(
